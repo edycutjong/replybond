@@ -60,7 +60,24 @@ async function scanFrom(head: bigint, headTs: number): Promise<bigint> {
 }
 
 type ParsedLog = ReturnType<typeof parseEventLogs<typeof replyBondAbi>>[number]
-let eventCache: { startedAt: number; from: bigint; scanned: bigint; logs: ParsedLog[] } | null = null
+interface EventCache {
+  startedAt: number
+  from: bigint
+  scanned: bigint
+  logs: ParsedLog[]
+}
+
+// Kept behind accessor functions on purpose: @vercel/nft statically evaluates module-level bindings, and a bare
+// `let cache = null` made it fold `cache.scanned + 1n` into `undefined + 1n`, which throws inside the tracer.
+const cacheBox: { current: EventCache | null } = { current: null }
+const readCache = (): EventCache | null => cacheBox.current
+const writeCache = (next: EventCache): void => {
+  cacheBox.current = next
+}
+/** First block still to scan: the window start before the first scan, then the block after the last scanned one. */
+function nextScanStart(cache: EventCache): bigint {
+  return cache.scanned < 0n ? cache.from : cache.scanned + 1n
+}
 
 export async function loadSnapshot(): Promise<Snapshot> {
   const c = ctx()
@@ -68,16 +85,19 @@ export async function loadSnapshot(): Promise<Snapshot> {
   const head = latest.number
   const now = Number(latest.timestamp)
   // Incremental event cache per instance (no reorgs on Arc): the first call scans the ~25h window, later calls only the new blocks.
-  if (!eventCache || Date.now() - eventCache.startedAt > 60 * 60 * 1000) {
-    eventCache = { startedAt: Date.now(), from: await scanFrom(head, now), scanned: -1n, logs: [] }
+  let cache = readCache()
+  if (!cache || Date.now() - cache.startedAt > 60 * 60 * 1000) {
+    cache = { startedAt: Date.now(), from: await scanFrom(head, now), scanned: -1n, logs: [] }
+    writeCache(cache)
   }
-  const fromBlock = eventCache.from
-  const start = eventCache.scanned < 0n ? fromBlock : eventCache.scanned + 1n
+  const fromBlock = cache.from
+  const start = nextScanStart(cache)
   if (start <= head) {
     const fresh = parseEventLogs({ abi: replyBondAbi, logs: await getLogsChunked(start, head) })
-    eventCache = { ...eventCache, scanned: head, logs: [...eventCache.logs, ...fresh] }
+    cache = { ...cache, scanned: head, logs: [...cache.logs, ...fresh] }
+    writeCache(cache)
   }
-  const logs = [...eventCache.logs]
+  const logs = [...cache.logs]
   logs.sort((a, b) =>
     a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1,
   )
