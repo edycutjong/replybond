@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "check": "bash scripts/check.sh",
     "contracts:build": "forge build",
-    "contracts:test": "forge test"
+    "contracts:test": "forge test",
+    "test:offers": "bun test tests/"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.19.2",
