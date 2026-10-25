@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ReplyBond — The 45-second clock hits zero, a red stamp lands: INDEMNITY PAID, +0.015 USDC back to the buyer.">
+<!-- STORYBOARD (dur 6s — must equal this file's single master dur)
+  0-10%   steady state: the perforated counterfoil on its own light plate, the deadline dial full in
+                        carbon-copy blue (state: paid, clock running), hand at twelve. No stamp. Poster-safe.
+  10-36%  trigger:      the clock runs: the blue arc drains and the hand sweeps one full turn back to twelve      (dial arc + hand, visible from t=0)
+  36-55%  mechanism:    The 45-second clock hits zero, a red stamp lands: INDEMNITY PAID, +0.015 USDC back to the buyer.      data-story="beat-3"
+                        (stamp drops from 1.9x with overshoot at 37-41%, strikes at −6°, impact ring spreads)
+  55-84%  resolution:   the stamp stays struck; ink bleeds out around it in two slow breaths      data-story="beat-4"
+  84-100% breathe + seam fade: stamp lifts off (86-92%), dial refills to full blue (84-96%), back to the poster
+-->
+  <style>
+    /* initial invisibility is declared in markup on [data-story] elements, never in CSS.
+       No transform-box on [data-story]: it would re-base their rotate(a cx cy) attributes. */
+    .pop { transform-box: fill-box; transform-origin: center; animation: pop 6s linear infinite; }
+    @keyframes pop {
+      0%, 37% { transform: scale(1.9) rotate(5deg); animation-timing-function: cubic-bezier(.2, 1.4, .4, 1); }
+      41.5%, 100% { transform: scale(1) rotate(0deg); }
+    }
+    .jolt { animation: jolt 6s linear infinite; }
+    @keyframes jolt {
+      0%, 38.4% { transform: translate(0, 0); }
+      38.9% { transform: translate(3px, 2px); }
+      39.4% { transform: translate(-2px, -1px); }
+      39.9%, 100% { transform: translate(0, 0); }
+    }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+  </style>
+  <defs>
+    <linearGradient id="ipaper" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0%" stop-color="#F8FAFC"/><stop offset="100%" stop-color="#E4EBF4"/></linearGradient>
+    <mask id="ipunch" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <circle cx="152" cy="40" r="19" fill="#000"/><circle cx="152" cy="472" r="19" fill="#000"/>
+      <g fill="#000"><circle cx="152" cy="96" r="6.5"/><circle cx="152" cy="126" r="6.5"/><circle cx="152" cy="156" r="6.5"/><circle cx="152" cy="186" r="6.5"/><circle cx="152" cy="216" r="6.5"/><circle cx="152" cy="246" r="6.5"/><circle cx="152" cy="276" r="6.5"/><circle cx="152" cy="306" r="6.5"/><circle cx="152" cy="336" r="6.5"/><circle cx="152" cy="366" r="6.5"/><circle cx="152" cy="396" r="6.5"/><circle cx="152" cy="426" r="6.5"/></g>
+    </mask>
+    <clipPath id="iinside"><rect x="40" y="40" width="432" height="432" rx="44"/></clipPath>
+    <filter id="iink" x="-6%" y="-12%" width="112%" height="124%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="4" result="grain"/>
+      <feDisplacementMap in="SourceGraphic" in2="grain" scale="5" xChannelSelector="R" yChannelSelector="G" result="ragged"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="3" seed="9" result="blot"/>
+      <feColorMatrix in="blot" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -2.3 0 0 0 2.75" result="wear"/>
+      <feComposite in="ragged" in2="wear" operator="in"/>
+    </filter>
+    <filter id="ibleed" x="-20%" y="-40%" width="140%" height="180%"><feGaussianBlur stdDeviation="9"/></filter>
+  </defs>
+
+  <g class="jolt">
+    <g mask="url(#ipunch)"><rect x="40" y="40" width="432" height="432" rx="44" fill="url(#ipaper)" stroke="#1A2238" stroke-width="16"/></g>
+    <g clip-path="url(#iinside)" fill="none" stroke="#1A2238" stroke-width="8"><circle cx="152" cy="40" r="23"/><circle cx="152" cy="472" r="23"/></g>
+    <g fill="none" stroke="#B8C3D3" stroke-width="3"><circle cx="152" cy="96" r="8.5"/><circle cx="152" cy="126" r="8.5"/><circle cx="152" cy="156" r="8.5"/><circle cx="152" cy="186" r="8.5"/><circle cx="152" cy="216" r="8.5"/><circle cx="152" cy="246" r="8.5"/><circle cx="152" cy="276" r="8.5"/><circle cx="152" cy="306" r="8.5"/><circle cx="152" cy="336" r="8.5"/><circle cx="152" cy="366" r="8.5"/><circle cx="152" cy="396" r="8.5"/><circle cx="152" cy="426" r="8.5"/></g>
+    <g fill="#5D6678"><rect x="76" y="104" width="48" height="10" rx="3"/><rect x="76" y="128" width="34" height="10" rx="3"/><rect x="76" y="152" width="42" height="10" rx="3"/></g>
+    <!-- dial: printed track + the running blue arc -->
+    <circle cx="320" cy="186" r="90" fill="none" stroke="#B8C3D3" stroke-width="30"/>
+    <circle cx="320" cy="186" r="90" fill="none" stroke="#2D52A0" stroke-width="30" pathLength="100" stroke-dasharray="100 100" stroke-dashoffset="0" transform="rotate(-90 320 186)">
+      <animate attributeName="stroke-dashoffset" values="0;0;100;100;0;0" keyTimes="0;0.10;0.36;0.84;0.96;1" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <line x1="320" y1="72" x2="320" y2="90" stroke="#1A2238" stroke-width="8" stroke-linecap="round"/>
+    <g>
+      <animateTransform attributeName="transform" type="rotate" values="0 320 186;0 320 186;360 320 186;360 320 186" keyTimes="0;0.10;0.36;1" dur="6s" repeatCount="indefinite"/>
+      <line x1="320" y1="186" x2="320" y2="124" stroke="#1A2238" stroke-width="14" stroke-linecap="round"/>
+    </g>
+    <circle cx="320" cy="186" r="13" fill="#1A2238"/>
+  </g>
+
+  <!-- beat 4: ink bleed breath behind the struck stamp (the one blur in this file) -->
+  <g opacity="0" data-story="beat-4">
+    <animate attributeName="opacity" values="0;0;0.32;0.12;0.32;0;0" keyTimes="0;0.45;0.55;0.65;0.75;0.86;1" dur="6s" repeatCount="indefinite"/>
+    <g transform="rotate(-6 304 372)" filter="url(#ibleed)"><rect x="116" y="318" width="378" height="112" rx="10" fill="#C2361F"/></g>
+  </g>
+
+  <!-- beat 3: impact ring -->
+  <ellipse cx="304" cy="374" rx="200" ry="62" fill="none" stroke="#C2361F" stroke-width="3" opacity="0" data-story="beat-3" transform="rotate(-6 304 374)">
+    <animate attributeName="opacity" values="0;0;0.6;0;0" keyTimes="0;0.395;0.40;0.50;1" dur="6s" repeatCount="indefinite"/>
+    <animate attributeName="rx" values="200;200;200;250;250" keyTimes="0;0.395;0.40;0.50;1" dur="6s" repeatCount="indefinite"/>
+    <animate attributeName="ry" values="62;62;62;100;100" keyTimes="0;0.395;0.40;0.50;1" dur="6s" repeatCount="indefinite"/>
+  </ellipse>
+
+  <!-- beat 3: THE STAMP -->
+  <g opacity="0" data-story="beat-3">
+    <animate attributeName="opacity" values="0;0;1;1;0;0" keyTimes="0;0.37;0.385;0.86;0.92;1" dur="6s" repeatCount="indefinite"/>
+    <g transform="rotate(-6 304 372)">
+      <g class="pop">
+        <g filter="url(#iink)">
+      <rect x="116" y="318" width="378" height="112" rx="10" fill="#C2361F"/>
+      <rect x="130" y="332" width="350" height="84" rx="5" fill="none" stroke="#F8FAFC" stroke-width="5"/>
+      <rect x="156" y="350" width="298" height="24" rx="3" fill="#F8FAFC"/>
+      <rect x="214" y="384" width="182" height="14" rx="3" fill="#F8FAFC"/>
+          <g fill="#C2361F"><circle cx="102" cy="338" r="4"/><circle cx="499" cy="404" r="3"/><circle cx="96" cy="420" r="2.5"/><circle cx="470" cy="306" r="2.5"/></g>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
