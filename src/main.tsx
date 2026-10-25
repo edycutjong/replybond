@@ -39,7 +39,7 @@ const StudioWatermark = () => (
     target="_blank"
     rel="noopener noreferrer"
     style={{
-      position: 'fixed',
+      position: 'absolute',
       bottom: '16px',
       right: '16px',
       display: 'flex',

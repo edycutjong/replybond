@@ -2,6 +2,7 @@ import { parseEventLogs } from 'viem'
 import type { Address, Hex, Log } from 'viem'
 import { replyBondAbi, Status } from '../../src/lib/abi.js'
 import { LIMITS, POOL_TARGET, ctx, sameAddr } from './config.js'
+import { isPoolStock } from '../../src/lib/pool.js'
 import { recordByHash } from './fixtures.js'
 import type { Mode, OfferRecord } from './fixtures.js'
 
@@ -174,15 +175,14 @@ export function rateStatus(s: Snapshot, needed = 1) {
   }
 }
 
+/** Pool stock that is still Accepted (waiting on its deadline, or past it and ready to time out). */
+const poolJobs = (s: Snapshot) => {
+  const buyer = ctx().demoBuyerAddress
+  return s.jobs.filter((j) => j.status === Status.Accepted && isPoolStock(j, buyer) && classify(j, 'silent').ok)
+}
+
 export function poolStatus(s: Snapshot) {
-  const c = ctx()
-  const pool = s.jobs.filter(
-    (j) =>
-      j.status === Status.Accepted &&
-      sameAddr(j.designated, c.demoBuyerAddress) &&
-      sameAddr(j.buyer, c.demoBuyerAddress) &&
-      classify(j, 'silent').ok,
-  )
+  const pool = poolJobs(s)
   const ready = pool.filter((j) => s.now > j.deadline)
   const waiting = pool.filter((j) => s.now <= j.deadline)
   return {
@@ -194,13 +194,40 @@ export function poolStatus(s: Snapshot) {
   }
 }
 
+/** Silent demo-buyer jobs past their deadline that are not pool stock (e.g. a watch run nobody settled). */
+export function orphanedExpired(s: Snapshot): Job[] {
+  const buyer = ctx().demoBuyerAddress
+  return s.jobs.filter(
+    (j) => j.status === Status.Accepted && s.now > j.deadline && sameAddr(j.buyer, buyer) && !isPoolStock(j, buyer) && classify(j, 'silent').ok,
+  )
+}
+
 export interface BusyReason {
   kind: 'pending_nonce' | 'accepted_within_deadline' | 'responded_within_grace'
   detail: string
   until: number
 }
 
-/** Busy = pending nonce on either wallet, or one of our jobs Accepted within its deadline, or Responded within grace. */
+/** Job-state half of the busy rule (no network): a non-pool job Accepted within its deadline, or Responded within grace. */
+export function jobBusyReasons(s: Snapshot): BusyReason[] {
+  const reasons: BusyReason[] = []
+  const demoBuyer = ctx().demoBuyerAddress
+  for (const j of s.jobs.filter(isOurs)) {
+    // Pool stock is exempt from the busy rule whatever its deadline: it is stock, not a job anyone is watching.
+    if (j.status === Status.Accepted && isPoolStock(j, demoBuyer)) continue
+    if (j.status === Status.Accepted && s.now <= j.deadline) {
+      reasons.push({ kind: 'accepted_within_deadline', detail: `job ${j.id} is Accepted, deadline ${j.deadline}`, until: j.deadline + 1 })
+    } else if (j.status === Status.Responded && s.now <= j.respondedAt + j.graceWindow) {
+      reasons.push({ kind: 'responded_within_grace', detail: `job ${j.id} is Responded, grace ends ${j.respondedAt + j.graceWindow}`, until: j.respondedAt + j.graceWindow + 1 })
+    }
+  }
+  return reasons
+}
+
+/**
+ * Busy = pending nonce on either wallet, or a (non-pool) job of ours Accepted within its deadline, or Responded within grace.
+ * Pool stock (see src/lib/pool.ts) never counts.
+ */
 export async function busyStatus(s: Snapshot) {
   const c = ctx()
   const reasons: BusyReason[] = []
@@ -212,13 +239,7 @@ export async function busyStatus(s: Snapshot) {
     ])
     if (pending > latest) reasons.push({ kind: 'pending_nonce', detail: `${who} wallet has ${pending - latest} pending tx`, until: s.now + 5 })
   }
-  for (const j of s.jobs.filter(isOurs)) {
-    if (j.status === Status.Accepted && s.now <= j.deadline) {
-      reasons.push({ kind: 'accepted_within_deadline', detail: `job ${j.id} is Accepted, deadline ${j.deadline}`, until: j.deadline + 1 })
-    } else if (j.status === Status.Responded && s.now <= j.respondedAt + j.graceWindow) {
-      reasons.push({ kind: 'responded_within_grace', detail: `job ${j.id} is Responded, grace ends ${j.respondedAt + j.graceWindow}`, until: j.respondedAt + j.graceWindow + 1 })
-    }
-  }
+  reasons.push(...jobBusyReasons(s))
   const retryAt = reasons.length ? Math.max(...reasons.map((r) => r.until)) : null
   return { busy: reasons.length > 0, reasons, retryAt, retryInSeconds: retryAt === null ? null : Math.max(0, retryAt - s.now) }
 }

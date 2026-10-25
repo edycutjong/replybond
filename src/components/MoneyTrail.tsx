@@ -30,7 +30,7 @@ interface Leg {
   amount: bigint
   what: string
   tx?: string
-  tag: 'Transfer log' | "from the contract's events" | 'PAID' | 'OWED' | 'transfer not confirmed'
+  tag: 'Transfer log' | "from the contract's events" | 'PAID' | 'OWED' | 'BOND RETURNED' | 'transfer not confirmed'
 }
 
 export function MoneyTrail({ job, settlement }: { job: JobView | undefined; settlement: Settlement | undefined }) {
@@ -56,9 +56,9 @@ export function MoneyTrail({ job, settlement }: { job: JobView | undefined; sett
           from: 'ReplyBond',
           to: payee,
           amount: c.amount ?? job.price + job.bond,
-          what: `${c.event === 'JobTimedOut' ? 'timeout' : c.event === 'JobClaimed' ? 'claim' : c.event === 'OfferWithdrawn' ? 'withdrawOffer' : 'acknowledge'} · ${c.kind}`,
+          what: `${c.event === 'JobTimedOut' ? 'timeout' : c.event === 'JobClaimed' ? 'claim' : c.event === 'OfferWithdrawn' ? 'withdrawOffer' : 'acknowledge'} · ${c.kind === 'PAID' && c.event === 'OfferWithdrawn' ? 'BOND RETURNED' : c.kind}`,
           tx: settlement.txHash,
-          tag: c.kind === 'UNREADABLE' ? 'transfer not confirmed' : c.kind,
+          tag: c.kind === 'UNREADABLE' ? 'transfer not confirmed' : c.kind === 'PAID' && c.event === 'OfferWithdrawn' ? 'BOND RETURNED' : c.kind,
         })
       }
       if (live) setLegs(out)

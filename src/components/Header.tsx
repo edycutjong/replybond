@@ -4,11 +4,11 @@ import { CONTRACT, IS_TESTNET, NETWORK_NAME, STUDIO_PROJECT_URL, addressUrl, sho
 
 export function Header() {
   return (
-    <header className="pt-8">
+    <header className="pt-5 sm:pt-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 44, fontWeight: 600, letterSpacing: '0.02em', lineHeight: 1 }}>REPLYBOND</h1>
-          <p className="mt-1" style={{ color: 'var(--muted)' }}>Pay an API, get paid back if it misses its deadline.</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(34px, 6vw, 44px)', fontWeight: 600, letterSpacing: '0.02em', lineHeight: 1 }}>REPLYBOND</h1>
+          <p className="mt-1 text-[15px] sm:text-[17px]" style={{ color: 'var(--muted)' }}>Pay an API, get paid back if it misses its deadline.</p>
         </div>
         <ConnectKitButton.Custom>
           {({ isConnected, show, truncatedAddress }) => (
@@ -18,7 +18,7 @@ export function Header() {
           )}
         </ConnectKitButton.Custom>
       </div>
-      <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[15px]">
+      <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[15px]">
         <span>
           Contract{' '}
           {CONTRACT ? (

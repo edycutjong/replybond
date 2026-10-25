@@ -11,6 +11,7 @@ export function useSettlements(refreshJobs: () => Promise<void>) {
   const [byJob, setByJob] = useState<Record<string, Settlement>>({})
   const [settling, setSettling] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [notes, setNotes] = useState<Record<string, string>>({})
 
   const remember = useCallback((id: string, s: Settlement) => setByJob((m) => ({ ...m, [id]: s })), [])
 
@@ -37,6 +38,7 @@ export function useSettlements(refreshJobs: () => Promise<void>) {
           const hash = r.body.txHash
           if (hash && (r.body.settled || r.body.alreadySettled)) {
             await load(id, hash)
+            if (r.body.actionLabel) setNotes((m) => ({ ...m, [id]: r.body.actionLabel! }))
             if (r.body.action === 'timeout') void api.refill().then(() => refreshJobs())
             await refreshJobs()
             return
@@ -57,6 +59,6 @@ export function useSettlements(refreshJobs: () => Promise<void>) {
     [load, refreshJobs],
   )
 
-  return { byJob, settling, errors, settleJob, load, remember }
+  return { byJob, settling, errors, notes, settleJob, load, remember }
 }
 export type Settlements = ReturnType<typeof useSettlements>

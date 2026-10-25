@@ -55,6 +55,8 @@ export interface SettleBody {
   settled?: boolean
   alreadySettled?: boolean
   action?: string
+  actionLabel?: string
+  by?: string
   jobId?: string
   txHash?: Hex | null
   receipt?: ReceiptSummary | null

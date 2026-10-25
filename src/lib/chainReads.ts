@@ -12,8 +12,10 @@ export interface JobView {
   provider: Address
   designated: Address
   buyer: Address // the acceptor once Accepted, else the designated buyer
+  requestHash: Hex
   price: bigint
   bond: bigint
+  responseWindow: number
   graceWindow: number
   status: number
   postedAt: number
@@ -90,8 +92,10 @@ async function reduce(logs: Parsed[]): Promise<JobView[]> {
           provider: l.args.provider,
           designated: l.args.buyer,
           buyer: l.args.buyer,
+          requestHash: l.args.requestHash,
           price: l.args.price,
           bond: l.args.bond,
+          responseWindow: Number(l.args.responseWindow),
           graceWindow: Number(l.args.graceWindow),
           status: Status.Open,
           postedAt: await tsOf(l),

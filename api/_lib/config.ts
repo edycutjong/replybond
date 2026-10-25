@@ -1,7 +1,7 @@
 import { createPublicClient, createWalletClient, defineChain, getAddress, http, isAddress, parseGwei } from 'viem'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { GRACE_WINDOW_S, RESPONSE_WINDOW_S } from '../../src/lib/terms.js'
+import { GRACE_WINDOW_S, POOL_GRACE_WINDOW_S, RESPONSE_WINDOW_S } from '../../src/lib/terms.js'
 import { requireChain } from '../../src/onchain-facts.js'
 import { HttpError } from './http.js'
 
@@ -15,6 +15,7 @@ export const MIN_MAX_FEE = parseGwei('20')
 export { BOND, PRICE } from '../../src/lib/terms.js'
 export const RESPONSE_WINDOW = BigInt(RESPONSE_WINDOW_S)
 export const GRACE_WINDOW = BigInt(GRACE_WINDOW_S)
+export const POOL_GRACE_WINDOW = BigInt(POOL_GRACE_WINDOW_S)
 export const LIMITS = { hour: 30, day: 150 } as const
 export const OPEN_OFFER_MAX_AGE_S = 600
 export const POOL_TARGET = 3
