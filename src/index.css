@@ -2,12 +2,277 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg: #e4ebf4; /* form stock */
+  --card: #f8fafc; /* counterfoil card face */
+  --ink: #1a2238; /* franking ink */
+  --muted: #5d6678; /* form labels */
+  --before: #2d52a0; /* state: paid, clock running */
+  --after: #c2361f; /* state: deadline missed, compensation paid */
+  --rule: #b8c3d3; /* ruled boxes, perforation */
+  --font-display: 'Antonio', 'Oswald', 'Arial Narrow', sans-serif;
+  --font-body: 'Libre Franklin', 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif;
+  --font-data: 'Azeret Mono', 'SFMono-Regular', Menlo, monospace;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
   min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Printed form label: condensed caps over the value. */
+.label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 400;
+}
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+.data {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.amount {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Buttons: ruled boxes of a form, one primary. */
+.btn {
+  min-height: 44px;
+  padding: 0 20px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 2px solid var(--ink);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 80ms ease-out, background 120ms;
+}
+.btn:hover:not(:disabled) {
+  background: #fff;
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--card);
+}
+.btn-primary:hover:not(:disabled) {
+  background: #263052;
+}
+.btn:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--before);
+  outline-offset: 2px;
+}
+
+a.link {
+  color: var(--before);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Counterfoil: stub + body split by a perforation. */
+.counterfoil {
+  position: relative;
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  box-shadow: 0 1px 0 var(--rule);
+  overflow: hidden;
+}
+.counterfoil .stub {
+  padding: 12px;
+  border-right: 2px dotted var(--rule);
+  position: relative;
+}
+.counterfoil .stub::before,
+.counterfoil .stub::after {
+  content: '';
+  position: absolute;
+  right: -9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+}
+.counterfoil .stub::before {
+  top: -9px;
+}
+.counterfoil .stub::after {
+  bottom: -9px;
+}
+.field {
+  border: 1px solid var(--rule);
+  padding: 6px 10px;
+  background: var(--card);
+}
+
+/* Red rubber stamp: lands on the card, never inside a box. */
+.stamp {
+  display: inline-block;
+  border: 4px double var(--after);
+  color: var(--after);
+  padding: 8px 16px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transform: rotate(-6deg);
+  background: rgba(248, 250, 252, 0.7);
+  animation: stamp-land 200ms ease-out both;
+}
+@keyframes stamp-land {
+  from {
+    transform: rotate(-6deg) scale(1.15);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(-6deg) scale(1);
+    opacity: 1;
+  }
+}
+.postmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 124px;
+  height: 124px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  outline: 1px solid var(--ink);
+  outline-offset: -8px;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  line-height: 1.15;
+  text-transform: uppercase;
+  padding: 14px;
+  transform: rotate(-4deg);
+  animation: stamp-land 200ms ease-out both;
+}
+.ink-note {
+  display: inline-block;
+  border: 2px solid var(--ink);
+  padding: 4px 12px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+.dots-wait::after {
+  content: '';
+  animation: dots 1.2s steps(4, end) infinite;
+}
+@keyframes dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+}
+
+table.jobs {
+  width: 100%;
+  border-collapse: collapse;
+}
+table.jobs th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--ink);
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  font-weight: 400;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+table.jobs td {
+  padding: 10px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: middle;
+}
+
+@media (max-width: 640px) {
+  .counterfoil {
+    grid-template-columns: 68px 1fr;
+  }
+  .stamp {
+    font-size: 24px;
+  }
+  table.jobs thead {
+    display: none;
+  }
+  table.jobs tr {
+    display: block;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    margin-bottom: 10px;
+    padding: 6px;
+  }
+  table.jobs td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 0;
+    padding: 4px 6px;
+  }
+  table.jobs td::before {
+    content: attr(data-label);
+    font-family: var(--font-display);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stamp,
+  .postmark {
+    animation: none;
+  }
+  .dots-wait::after {
+    animation: none;
+    content: '...';
+  }
 }

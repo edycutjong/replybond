@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ReplyBond — a job counterfoil whose deadline dial has run out, stamped red: the buyer is compensated">
+  <!-- ReplyBond static mark. Favicon + raster source.
+       Three shapes survive at 16px: (1) the light counterfoil plate, (2) the blue
+       deadline dial (state: paid, clock running), (3) the red stamp bar at −6°
+       that overhangs the card edge (state: deadline missed, compensation paid).
+       The plate is the icon's own background, so ink/blue strokes never sit on
+       GitHub dark #0d1117 (ink 1.2:1, blue 2.55:1 there); plate vs #0d1117 = 18.09:1. -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0%" style="stop-color: var(--card, #F8FAFC)"/>
+      <stop offset="100%" style="stop-color: var(--bg, #E4EBF4)"/>
+    </linearGradient>
+    <!-- punched perforation + edge notches: real holes, the page shows through -->
+    <mask id="punch" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <circle cx="152" cy="40" r="19" fill="#000"/>
+      <circle cx="152" cy="472" r="19" fill="#000"/>
+      <g fill="#000">
+        <circle cx="152" cy="96" r="6.5"/><circle cx="152" cy="126" r="6.5"/><circle cx="152" cy="156" r="6.5"/>
+        <circle cx="152" cy="186" r="6.5"/><circle cx="152" cy="216" r="6.5"/><circle cx="152" cy="246" r="6.5"/>
+        <circle cx="152" cy="276" r="6.5"/><circle cx="152" cy="306" r="6.5"/><circle cx="152" cy="336" r="6.5"/>
+        <circle cx="152" cy="366" r="6.5"/><circle cx="152" cy="396" r="6.5"/><circle cx="152" cy="426" r="6.5"/>
+      </g>
+    </mask>
+    <clipPath id="plate-inside"><rect x="40" y="40" width="432" height="432" rx="44"/></clipPath>
+    <!-- rubber-stamp ink: slightly ragged edge + worn patches (no blur) -->
+    <filter id="ink" x="-4%" y="-8%" width="108%" height="116%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="4" result="grain"/>
+      <feDisplacementMap in="SourceGraphic" in2="grain" scale="5" xChannelSelector="R" yChannelSelector="G" result="ragged"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="3" seed="9" result="blot"/>
+      <feColorMatrix in="blot" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -2.3 0 0 0 2.75" result="wear"/>
+      <feComposite in="ragged" in2="wear" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- (1) counterfoil plate with punched perforation -->
+  <g mask="url(#punch)">
+    <rect x="40" y="40" width="432" height="432" rx="44" fill="url(#paper)" style="stroke: var(--ink, #1A2238)" stroke-width="16"/>
+  </g>
+  <!-- notch rims, kept inside the card -->
+  <g clip-path="url(#plate-inside)" fill="none" style="stroke: var(--ink, #1A2238)" stroke-width="8">
+    <circle cx="152" cy="40" r="23"/>
+    <circle cx="152" cy="472" r="23"/>
+  </g>
+  <!-- punch rims: the tear line stays visible on white, where the holes show white -->
+  <g fill="none" style="stroke: var(--rule, #B8C3D3)" stroke-width="3">
+    <circle cx="152" cy="96" r="8.5"/><circle cx="152" cy="126" r="8.5"/><circle cx="152" cy="156" r="8.5"/>
+    <circle cx="152" cy="186" r="8.5"/><circle cx="152" cy="216" r="8.5"/><circle cx="152" cy="246" r="8.5"/>
+    <circle cx="152" cy="276" r="8.5"/><circle cx="152" cy="306" r="8.5"/><circle cx="152" cy="336" r="8.5"/>
+    <circle cx="152" cy="366" r="8.5"/><circle cx="152" cy="396" r="8.5"/><circle cx="152" cy="426" r="8.5"/>
+  </g>
+  <!-- buyer's stub: three printed form lines -->
+  <g style="fill: var(--muted, #5D6678)">
+    <rect x="76" y="104" width="48" height="10" rx="3"/>
+    <rect x="76" y="128" width="34" height="10" rx="3"/>
+    <rect x="76" y="152" width="42" height="10" rx="3"/>
+  </g>
+
+  <!-- (2) deadline dial at zero: blue ring = the clock that was running -->
+  <circle cx="320" cy="186" r="90" fill="none" style="stroke: var(--before, #2D52A0)" stroke-width="30"/>
+  <g style="stroke: var(--ink, #1A2238)" stroke-linecap="round">
+    <line x1="320" y1="186" x2="320" y2="124" stroke-width="14"/>
+    <line x1="320" y1="72" x2="320" y2="90" stroke-width="8"/>
+  </g>
+  <circle cx="320" cy="186" r="13" style="fill: var(--ink, #1A2238)"/>
+
+  <!-- (3) the stamp, struck at −6°, overhanging the card's right edge -->
+  <g transform="rotate(-6 304 372)" filter="url(#ink)">
+    <rect x="116" y="318" width="378" height="112" rx="10" style="fill: var(--after, #C2361F)"/>
+    <rect x="130" y="332" width="350" height="84" rx="5" fill="none" style="stroke: var(--card, #F8FAFC)" stroke-width="5"/>
+    <rect x="156" y="350" width="298" height="24" rx="3" style="fill: var(--card, #F8FAFC)"/>
+    <rect x="214" y="384" width="182" height="14" rx="3" style="fill: var(--card, #F8FAFC)"/>
+  </g>
+</svg>

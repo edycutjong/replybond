@@ -1,6 +1,6 @@
-# Arc Probe
+# ReplyBond
 
-A small Arc Testnet app with a `POST /api/probe` route that sends a 0-value transaction from a configured wallet to itself (max fee of at least 20 gwei) and returns the transaction hash.
+Pay an API per call: if it misses its onchain deadline, you get your price back plus the provider's bond. The app is a one-page counter at `/` where you can settle a missed deadline, call the demo API with your own wallet, watch a demo job miss its deadline, and follow every job live from the contract's events. It also includes a small `POST /api/probe` route that sends a 0-value transaction from a configured wallet to itself.
 
 Built with [Arc Studio](https://studio.arc.io)
 
@@ -24,7 +24,7 @@ bun run dev      # app on port 5173, proxies /api to the probe API
 
 Call it: `curl -X POST http://localhost:5173/api/probe`
 
-Other commands: `bun run check` (lint and typecheck), `bun run test:offers` (fixture hash test), `bun run contracts:test` (contract tests).
+Other commands: `bun run check` (lint and typecheck), `bun run test:offers` (fixture hash and receipt classification tests), `bun run contracts:test` (contract tests).
 
 ### Serverless API
 
@@ -32,6 +32,11 @@ The `api/` folder holds Vercel-style functions that also run in the local previe
 
 ### Environment variables
 
+- `VITE_CHAIN_ID`: chain the app and API use (defaults to Arc Testnet). Changing the network is a config change.
+- `VITE_REPLYBOND_ADDRESS`: deployed ReplyBond address shown and read by the page (also used by the API when `REPLYBOND_ADDRESS` is unset).
+- `VITE_REPLYBOND_START_BLOCK`: optional, first block to scan for events (the deployment block).
+- `VITE_STUDIO_PROJECT_URL`: optional, Arc Studio project link in the header.
+- `VITE_SITE_URL`: optional, public site origin (no trailing slash) used for the social card image URL.
 - `PROVIDER_KEY`: private key of the service-provider wallet (funded with Arc Testnet USDC). Required by `api/`.
 - `DEMO_BUYER_KEY`: private key of the demo buyer wallet (funded with Arc Testnet USDC). Required by `api/`.
 - `REPLYBOND_ADDRESS`: optional, ReplyBond contract address (defaults to the Arc Testnet deployment).

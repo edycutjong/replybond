@@ -1,6 +1,6 @@
 import { formatEther, parseEventLogs } from 'viem'
 import type { Address, Hex } from 'viem'
-import { replyBondAbi, Status, STATUS_NAMES } from './abi.js'
+import { replyBondAbi, Status, STATUS_NAMES } from '../../src/lib/abi.js'
 import { readJob, chainNow, respondToJob, runSweep, settlePath } from './actions.js'
 import type { JobResult } from './actions.js'
 import { BOND, GRACE_WINDOW, POOL_TARGET, PRICE, RESPONSE_WINDOW, ctx, sameAddr } from './config.js'

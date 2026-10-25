@@ -1,6 +1,6 @@
 import { parseEventLogs } from 'viem'
 import type { Address, Hex, Log } from 'viem'
-import { replyBondAbi, Status } from './abi.js'
+import { replyBondAbi, Status } from '../../src/lib/abi.js'
 import { LIMITS, POOL_TARGET, ctx, sameAddr } from './config.js'
 import { recordByHash } from './fixtures.js'
 import type { Mode, OfferRecord } from './fixtures.js'

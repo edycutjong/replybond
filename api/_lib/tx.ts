@@ -1,5 +1,5 @@
 import type { Hex, TransactionReceipt } from 'viem'
-import { replyBondAbi } from './abi.js'
+import { replyBondAbi } from '../../src/lib/abi.js'
 import { MIN_MAX_FEE, ctx } from './config.js'
 
 export type WriteFn = 'postOffer' | 'withdrawOffer' | 'acceptOffer' | 'respond' | 'acknowledge' | 'claim' | 'timeout'

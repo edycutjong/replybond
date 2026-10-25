@@ -1,6 +1,6 @@
 import { BaseError, ContractFunctionRevertedError, keccak256, stringToHex, toBytes } from 'viem'
 import type { Address, Hex } from 'viem'
-import { replyBondAbi, Status, STATUS_NAMES } from './abi.js'
+import { replyBondAbi, Status, STATUS_NAMES } from '../../src/lib/abi.js'
 import { OPEN_OFFER_MAX_AGE_S, ctx, sameAddr } from './config.js'
 import { hashInput } from './fixtures.js'
 import type { Mode } from './fixtures.js'
@@ -129,6 +129,10 @@ export async function respondToJob(jobId: bigint, mode?: Mode): Promise<JobResul
 }
 
 export interface SweepResult {
+  contract: Address
+  chainId: number
+  providerAddress: Address
+  demoBuyerAddress: Address
   chainTime: number
   scannedJobs: number
   fromBlock: bigint
@@ -142,7 +146,12 @@ export interface SweepResult {
 /** Idempotent dispatch sweep over our provider's jobs. Never responds to silent records. */
 export async function runSweep(): Promise<SweepResult> {
   const snap = await loadSnapshot()
+  const c = ctx()
   const out: SweepResult = {
+    contract: c.replyBond,
+    chainId: c.chain.id,
+    providerAddress: c.providerAddress,
+    demoBuyerAddress: c.demoBuyerAddress,
     chainTime: snap.now,
     scannedJobs: snap.jobs.length,
     fromBlock: snap.fromBlock,

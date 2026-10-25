@@ -95,7 +95,7 @@ export default defineConfig(({ mode }) => {
     allowedHosts: true,
     cors: true,
     proxy: {
-      '/api': {
+      '^/api/(?!_lib/)': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ''),
