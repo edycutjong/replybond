@@ -67,7 +67,7 @@ async function loadOnchainFacts(): Promise<OnchainFactsModule> {
 /**
  * A chain is deployable here when Circle SCP names it and it is a testnet. The
  * SDK's faucet type rejects a mainnet enum, so a mainnet run could never fund
- * its wallet — `references/compass-deploy.md` owns the mainnet path.
+ * its wallet; a mainnet deploy needs the owner's own wallet and credentials.
  */
 function listSupportedChains(facts: OnchainFactsModule): string[] {
   return facts.ONCHAIN_CHAINS.flatMap((chain) => (chain.isTestnet && chain.scpBlockchain ? [chain.scpBlockchain] : []));
@@ -245,10 +245,8 @@ function validateChain(value: string, supportedChains: string[]): string {
 }
 
 /**
- * Canonical version lives in `compass-deploy-helpers.ts` (`assertNumbersSurviveJsonParse`).
- * self-deploy.ts runs standalone in the sandbox with no local imports (recovered
- * file-for-file from `references/self-deploy-script.ts.txt` if corrupted), so this
- * is a duplicate, not a shared import.
+ * self-deploy.ts runs standalone with no local imports, so helpers like this one
+ * live in this file.
  */
 function assertNumbersSurviveJsonParse(value: unknown, path: string): void {
   if (Array.isArray(value)) {

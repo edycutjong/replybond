@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { hashInput, offers, recordByMode } from '../api/_lib/fixtures.js'
 
@@ -24,4 +25,9 @@ test('fixtures equal the Turn 1 test-vector constants', () => {
   assert.equal(hashInput(silent.input), H_SUMMARISE)
   assert.equal(normal.requestHash, H_INVOICE)
   assert.equal(silent.requestHash, H_SUMMARISE)
+})
+
+test('src/offers.json mirrors the TypeScript fixture module the routes import', () => {
+  const json = JSON.parse(readFileSync(new URL('../src/offers.json', import.meta.url), 'utf8')) as unknown
+  assert.deepEqual(json, offers)
 })

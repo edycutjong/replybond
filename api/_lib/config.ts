@@ -27,9 +27,18 @@ function envKey(name: string): Hex {
   return k as Hex
 }
 
+const isProduction = () => process.env.VERCEL_ENV === 'production'
+
+/** Shared config (VITE_*). Production must set it explicitly; elsewhere the testnet defaults apply. */
+function sharedEnv(name: string): string | undefined {
+  const v = process.env[name]?.trim()
+  if (!v && isProduction()) throw new HttpError(500, `${name} is not set (required when VERCEL_ENV is production)`)
+  return v || undefined
+}
+
 /** The chain comes from config (VITE_CHAIN_ID, shared with the page), described by the onchain-facts registry. */
 function resolveChain() {
-  const id = Number(process.env.VITE_CHAIN_ID?.trim() || DEFAULT_CHAIN_ID)
+  const id = Number(sharedEnv('VITE_CHAIN_ID') || DEFAULT_CHAIN_ID)
   const fact = requireChain(id)
   return defineChain({
     id,
@@ -40,28 +49,34 @@ function resolveChain() {
   })
 }
 
-/** RPC_URL wins; else the environment's RPC proxy when it covers the chain; else the registry default. */
+/**
+ * RPC_URL wins. Otherwise the sandbox RPC proxy, only when RPC_PROXY_BASE_URL is set (the Arc Studio preview).
+ * In production there is no further fallback: a missing RPC_URL is a clear 500, never a default endpoint.
+ * Outside production (local dev) the registry's public endpoint is used.
+ */
 function resolveRpcUrl(chain: ReturnType<typeof resolveChain>): string {
   const explicit = process.env.RPC_URL?.trim()
   if (explicit) return explicit
-  const base = process.env.RPC_PROXY_BASE_URL
-  const chains = (process.env.RPC_PROXY_CHAINS || '').split(',')
-  const proxyKey = chain.id === DEFAULT_CHAIN_ID ? 'Arc_Testnet' : undefined
-  if (base && proxyKey && chains.indexOf(proxyKey) !== -1) {
-    return `${base}/api/rpc/${proxyKey}?_rpc_token=${process.env.RPC_PROXY_TOKEN ?? ''}`
+  const base = process.env.RPC_PROXY_BASE_URL?.trim()
+  if (base) {
+    const proxyKey = requireChain(chain.id).name.replace(/\s+/g, '_')
+    if ((process.env.RPC_PROXY_CHAINS || '').split(',').indexOf(proxyKey) !== -1) {
+      return `${base}/api/rpc/${proxyKey}?_rpc_token=${process.env.RPC_PROXY_TOKEN ?? ''}`
+    }
   }
+  if (isProduction()) throw new HttpError(500, 'RPC_URL is not set (required when VERCEL_ENV is production)')
   return chain.rpcUrls.default.http[0]
 }
 
 function build() {
   const provider = privateKeyToAccount(envKey('PROVIDER_KEY'))
   const buyer = privateKeyToAccount(envKey('DEMO_BUYER_KEY'))
-  const rawAddr = process.env.REPLYBOND_ADDRESS?.trim() || process.env.VITE_REPLYBOND_ADDRESS?.trim() || DEFAULT_REPLYBOND
+  const rawAddr = process.env.REPLYBOND_ADDRESS?.trim() || sharedEnv('VITE_REPLYBOND_ADDRESS') || DEFAULT_REPLYBOND
   if (!isAddress(rawAddr)) throw new HttpError(500, 'REPLYBOND_ADDRESS is not a valid address')
   const replyBond = getAddress(rawAddr)
   const chain = resolveChain()
   const transport = http(resolveRpcUrl(chain))
-  const startEnv = process.env.REPLYBOND_START_BLOCK?.trim() || process.env.VITE_REPLYBOND_START_BLOCK?.trim()
+  const startEnv = process.env.REPLYBOND_START_BLOCK?.trim() || sharedEnv('VITE_REPLYBOND_START_BLOCK')
   const startBlock = startEnv
     ? BigInt(startEnv)
     : replyBond.toLowerCase() === DEFAULT_REPLYBOND

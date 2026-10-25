@@ -1,17 +1,10 @@
 import { keccak256, toBytes } from 'viem'
 import type { Hex } from 'viem'
-import offersJson from '../../src/offers.json' with { type: 'json' }
+import { offers } from '../../src/lib/offers.js'
+import type { Mode, OfferRecord } from '../../src/lib/offers.js'
 
-export type Mode = 'normal' | 'silent'
-
-export interface OfferRecord {
-  id: string
-  mode: Mode
-  input: string
-  requestHash: Hex
-}
-
-export const offers = offersJson as OfferRecord[]
+export { offers }
+export type { Mode, OfferRecord }
 
 /** The one place a request hash is computed: keccak256 of the input's UTF-8 bytes. */
 export function hashInput(input: string): Hex {

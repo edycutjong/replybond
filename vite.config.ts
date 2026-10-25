@@ -55,13 +55,28 @@ function vercelApi(): Plugin {
   }
 }
 
+/** Fills %VITE_SITE_URL% in index.html: the env value, else the Vercel production URL, else empty (relative). */
+function siteUrl(): Plugin {
+  return {
+    name: 'site-url',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL
+        const site = (process.env.VITE_SITE_URL || (vercel ? `https://${vercel}` : '')).replace(/\/+$/, '')
+        return html.replaceAll('%VITE_SITE_URL%', site)
+      },
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   // Expose .env to the api/ handlers (Vite only exposes VITE_* to the browser).
   for (const [k, v] of Object.entries(loadEnv(mode, process.cwd(), ''))) {
     if (process.env[k] === undefined) process.env[k] = v
   }
   return {
-  plugins: [react(), nodePolyfills(), vercelApi()],
+  plugins: [react(), nodePolyfills(), vercelApi(), siteUrl()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

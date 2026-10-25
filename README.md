@@ -32,15 +32,26 @@ The `api/` folder holds Vercel-style functions that also run in the local previe
 
 ### Environment variables
 
-- `VITE_CHAIN_ID`: chain the app and API use (defaults to Arc Testnet). Changing the network is a config change.
-- `VITE_REPLYBOND_ADDRESS`: deployed ReplyBond address shown and read by the page (also used by the API when `REPLYBOND_ADDRESS` is unset).
-- `VITE_REPLYBOND_START_BLOCK`: optional, first block to scan for events (the deployment block).
-- `VITE_STUDIO_PROJECT_URL`: optional, Arc Studio project link in the header.
-- `VITE_SITE_URL`: optional, public site origin (no trailing slash) used for the social card image URL.
-- `PROVIDER_KEY`: private key of the service-provider wallet (funded with Arc Testnet USDC). Required by `api/`.
-- `DEMO_BUYER_KEY`: private key of the demo buyer wallet (funded with Arc Testnet USDC). Required by `api/`.
-- `REPLYBOND_ADDRESS`: optional, ReplyBond contract address (defaults to the Arc Testnet deployment).
-- `REPLYBOND_START_BLOCK`: optional, first block to scan for events (defaults to the deployment block).
-- `RPC_URL`: optional, Arc Testnet RPC endpoint (defaults to the public Arc Testnet RPC).
-- `PROBE_KEY`: private key (0x-prefixed hex) of a funded Arc Testnet wallet used to send the probe transaction. Required for `/api/probe`.
-- `PROBE_SERVER_PORT`: optional, port for the probe API (default 3001).
+Hosted on Vercel (Vite framework preset, `api/` as Node.js functions):
+
+Server (Vercel project environment variables, runtime):
+- `PROVIDER_KEY`: private key of the service-provider wallet. Required.
+- `DEMO_BUYER_KEY`: private key of the demo buyer wallet. Required.
+- `RPC_URL`: RPC endpoint for the configured chain. Required in production; a missing value returns a clear 500.
+- `REPLYBOND_ADDRESS`: optional override of `VITE_REPLYBOND_ADDRESS` for the API.
+- `REPLYBOND_START_BLOCK`: optional override of `VITE_REPLYBOND_START_BLOCK` for the API.
+
+Shared config (set as Vercel environment variables; read by the build and by the functions):
+- `VITE_CHAIN_ID`: chain the app and API use. Required in production.
+- `VITE_REPLYBOND_ADDRESS`: deployed ReplyBond address. Required in production.
+- `VITE_REPLYBOND_START_BLOCK`: block the contract was deployed in. Required in production.
+
+Optional at build time:
+- `VITE_STUDIO_PROJECT_URL`: Arc Studio project link in the header.
+- `VITE_SITE_URL`: public origin for the social card image (defaults to the Vercel production URL).
+
+Local only:
+- `PROBE_KEY`: private key for the sample `/api/probe` route (local `server/` process).
+- `PROBE_SERVER_PORT`: optional port for that local process (default 3001).
+- `RPC_PROXY_BASE_URL`, `RPC_PROXY_TOKEN`, `RPC_PROXY_CHAINS`: provisioned by Arc Studio previews; optional elsewhere.
+

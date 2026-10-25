@@ -1,8 +1,25 @@
+# dependencies and build output
+node_modules
+dist
+.vercel
+coverage
+cache/
+contracts/out/
+contracts/cache/
+
+# secrets and local environment
 .env
 .env.*
-node_modules/
-__pycache__/
-.next/
-dist/
-coverage/
+.circle/
+recovery_file*
+
+# local scratch and tool output
+.scratch/
+traces.jsonl
+console.jsonl
 .DS_Store
+
+# agent and tooling files that must not be committed to the public repo
+AGENTS.md
+.agents/
+.arc-studio/

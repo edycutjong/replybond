@@ -7,14 +7,14 @@
     "dev": "vite",
     "server": "bun run ./server/index.ts",
     "deploy:self": "bun run ./scripts/self-deploy.ts",
-    "compass:deploy": "bun run ./scripts/compass-deploy.ts",
     "fetch:abi": "bun run ./scripts/fetch-abi.ts",
     "lint": "oxlint --type-aware src scripts --fix; s=$?; oxlint --fix .; exit $((s>0?s:$?))",
     "typecheck": "tsc --noEmit",
     "check": "bash scripts/check.sh",
     "contracts:build": "forge build",
     "contracts:test": "forge test",
-    "test:offers": "bun test tests/"
+    "test:offers": "bun test tests/",
+    "build": "vite build"
   },
   "dependencies": {
     "@circle-fin/adapter-viem-v2": "^1.19.2",
