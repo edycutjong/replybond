@@ -4,8 +4,9 @@ import { replyBondAbi, Status } from './abi'
 import { appChain, CONTRACT, START_BLOCK } from './appConfig'
 import { classifyReceipt } from './classifyReceipt'
 import type { Classification } from './classifyReceipt'
+import type { ReceiptSummary } from './api'
 
-export const publicClient = createPublicClient({ chain: appChain, transport: http(appChain.rpcUrls.default.http[0], { batch: { wait: 20 } }), pollingInterval: 500 })
+export const publicClient = createPublicClient({ chain: appChain, transport: http(appChain.rpcUrls.default.http[0], { batch: { wait: 20 }, retryCount: 5, retryDelay: 300 }), pollingInterval: 500 })
 
 export interface JobView {
   id: bigint
@@ -192,6 +193,8 @@ export interface Settlement {
   txHash: Hex
   classification: Classification
   blockTime: number | null
+  /** The receipt could not be fetched (RPC trouble): not a verdict, so callers retry instead of showing UNREADABLE. */
+  unavailable?: boolean
 }
 
 /** Fetches the settle receipt from the chain and classifies it with the shared function. */
@@ -208,7 +211,22 @@ export async function resolveSettlement(txHash: Hex): Promise<Settlement> {
       blockTime = null
     }
   }
-  return { jobId: classification.jobId, txHash, classification, blockTime }
+  return { jobId: classification.jobId, txHash, classification, blockTime, unavailable: receipt === null }
+}
+
+/**
+ * Classifies the receipt that /api/settle (or /api/demo-run) returned, with the same shared function, so the stamp or
+ * postmark does not depend on the browser's own RPC being reachable at that moment.
+ */
+export async function settlementFromSummary(s: ReceiptSummary): Promise<Settlement> {
+  const classification = CONTRACT ? classifyReceipt({ status: s.status, logs: s.logs }, CONTRACT) : classifyReceipt(null, '0x0000000000000000000000000000000000000000')
+  let blockTime: number | null = null
+  try {
+    blockTime = Number((await slot(() => publicClient.getBlock({ blockNumber: BigInt(s.blockNumber) }))).timestamp)
+  } catch {
+    blockTime = null // the time on the postmark is optional
+  }
+  return { jobId: classification.jobId, txHash: s.txHash, classification, blockTime }
 }
 
 export async function readJobTerms(id: bigint): Promise<{ price: bigint; bond: bigint } | null> {

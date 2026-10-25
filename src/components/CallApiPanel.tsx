@@ -6,36 +6,35 @@ import { api } from '@/lib/api'
 import type { DemoRunBody, JobBody } from '@/lib/api'
 import { NETWORK_NAME, fmtUsdc } from '@/lib/appConfig'
 import { publicClient, readCommittedOutput } from '@/lib/chainReads'
-import { addMine } from '@/lib/mine'
 import { BOND, GRACE_WINDOW_S, PRICE, RESPONSE_WINDOW_S } from '@/lib/terms'
+import type { TrackedKind } from '@/lib/tracked'
 import { BusyNotice } from './BusyNotice'
+import { TrackedCard } from './TrackedCard'
+import type { CardFallback } from './TrackedCard'
 import type { FlowCtx } from './types'
-import { Counterfoil, STATUS_FOR_EVENT, TxLink, blockTime } from './ui'
 
 type Phase = 'idle' | 'offering' | 'accepting' | 'calling' | 'waiting' | 'responded' | 'acknowledging' | 'done' | 'missed' | 'error'
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const CALL_KINDS: TrackedKind[] = ['normal', 'buyer-silent', 'own']
 
-/** "Call the API": own-wallet flow (Pay & call) and the wallet-free demo run (Watch it). */
+/** "Call the API": own-wallet flow (Pay & call) and two wallet-free demo runs (answered and acknowledged / buyer stays silent). */
 export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
   const { setOpen } = useModal()
   const wallet = useWalletActions()
   const [phase, setPhase] = useState<Phase>('idle')
-  const [jobId, setJobId] = useState<string | null>(null)
+  const [active, setActive] = useState<{ id: string; kind: TrackedKind; fallback?: CardFallback } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [refusal, setRefusal] = useState<JobBody | null>(null)
-  const [output, setOutput] = useState<string | null>(null)
-  const [acceptTx, setAcceptTx] = useState<string | null>(null)
-  const [watch, setWatch] = useState<{ phase: 'idle' | 'running' | 'done' | 'busy' | 'error'; body?: DemoRunBody; message?: string }>({ phase: 'idle' })
+  const [watch, setWatch] = useState<{ phase: 'idle' | 'running' | 'busy' | 'error'; mode?: 'normal' | 'buyer-silent'; body?: DemoRunBody; message?: string }>({ phase: 'idle' })
 
-  const job = jobId ? ctx.jobs.find((j) => String(j.id) === jobId) : undefined
-  const settlement = jobId ? ctx.settlements.byJob[jobId] : undefined
-  const claimable = job && job.status === Status.Responded && ctx.settlements.byJob[String(job.id)] === undefined && ctx.sweep?.providerAddress?.toLowerCase() === job.provider.toLowerCase() && ctx.now > job.respondedAt + job.graceWindow
+  // The job on show: the one just started, else a call-panel job restored from storage.
+  const restored = ctx.seen.find((t) => CALL_KINDS.includes(t.kind))
+  const shown = active ?? (restored ? { id: restored.id, kind: restored.kind } : null)
+  const settlement = shown ? ctx.settlements.byJob[shown.id] : undefined
+  const job = shown ? ctx.jobs.find((j) => String(j.id) === shown.id) : undefined
 
   const fail = (e: unknown) => {
-    if (isUserRejection(e)) {
-      setPhase(jobId ? 'responded' : 'idle')
-      return
-    }
+    if (isUserRejection(e)) return setPhase(active ? 'responded' : 'idle')
     setError((e as { shortMessage?: string; message?: string }).shortMessage ?? (e as Error).message)
     setPhase('error')
   }
@@ -44,8 +43,7 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
     if (!wallet.address) return setOpen(true)
     setError(null)
     setRefusal(null)
-    setOutput(null)
-    setJobId(null)
+    setActive(null)
     try {
       setPhase('offering')
       const o = await api.offer(wallet.address)
@@ -54,19 +52,18 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
         throw new Error((o.body.error === 'rate_limited' ? 'The demo offer limit is reached.' : (o.body.error ?? 'offer failed')) + wait)
       }
       const id = o.body.jobId
-      setJobId(id)
-      addMine(id)
+      setActive({ id, kind: 'own' })
+      ctx.track(id, 'own')
       const fromBlock = (await publicClient.getBlockNumber()) - 5n
       setPhase('accepting')
-      setAcceptTx(await wallet.accept(BigInt(id)))
+      const acceptTx = await wallet.accept(BigInt(id))
+      setActive({ id, kind: 'own', fallback: { txHashes: { 'your accept': acceptTx } } })
       setPhase('calling')
       const jr = await api.job(id)
       if (jr.body.refused) setRefusal(jr.body) // not ours or wrong mode: show the settle path, keep watching the chain
       setPhase('waiting')
       for (let i = 0; i < 40; i++) {
-        const out = await readCommittedOutput(BigInt(id), fromBlock)
-        if (out) {
-          setOutput(out.output)
+        if (await readCommittedOutput(BigInt(id), fromBlock)) {
           await ctx.refresh()
           return setPhase('responded')
         }
@@ -79,10 +76,10 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
   }
 
   const acknowledge = async () => {
-    if (!jobId) return
+    if (!shown) return
     try {
       setPhase('acknowledging')
-      ctx.settlements.remember(jobId, await wallet.acknowledge(BigInt(jobId)))
+      ctx.settlements.remember(shown.id, await wallet.acknowledge(BigInt(shown.id)))
       await ctx.refresh()
       setPhase('done')
     } catch (e) {
@@ -91,9 +88,9 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
   }
 
   const timeoutFromWallet = async () => {
-    if (!jobId) return
+    if (!shown) return
     try {
-      ctx.settlements.remember(jobId, await wallet.timeout(BigInt(jobId)))
+      ctx.settlements.remember(shown.id, await wallet.timeout(BigInt(shown.id)))
       await ctx.refresh()
       setPhase('done')
     } catch (e) {
@@ -101,23 +98,39 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
     }
   }
 
-  const watchIt = async () => {
-    setWatch({ phase: 'running' })
+  const watchIt = async (mode: 'normal' | 'buyer-silent') => {
+    setWatch({ phase: 'running', mode })
+    setPhase('idle')
     try {
-      const r = await api.demoRun('normal')
-      if (r.status === 409) return setWatch({ phase: 'busy', body: r.body })
-      const ack = r.body.txHashes?.acknowledge
-      if (r.status !== 200 || !r.body.jobId || !ack) throw new Error(r.body.error ?? `demo run failed (HTTP ${r.status})`)
-      await ctx.settlements.load(r.body.jobId, ack)
-      setWatch({ phase: 'done', body: r.body })
+      const r = await api.demoRun(mode)
+      if (r.status === 409) return setWatch({ phase: 'busy', mode, body: r.body })
+      const b = r.body
+      if (r.status !== 200 || !b.jobId) throw new Error(b.error ?? b.message ?? `demo run failed (HTTP ${r.status})`)
+      if (mode === 'normal') {
+        const ack = b.txHashes?.acknowledge
+        if (!ack) throw new Error('the run returned no acknowledge transaction')
+        // Classified from the receipt the route returned; the browser's own RPC is only the fallback.
+        await ctx.settlements.load(b.jobId, ack, b.receipt)
+        setActive({ id: b.jobId, kind: 'normal', fallback: { status: Status.Paid, output: b.output, txHashes: b.txHashes } })
+      } else {
+        ctx.track(b.jobId, 'buyer-silent', { respondedAt: b.respondedAt ?? undefined, graceWindow: b.graceWindow, output: b.output })
+        setActive({
+          id: b.jobId,
+          kind: 'buyer-silent',
+          fallback: { status: Status.Responded, respondedAt: b.respondedAt ?? undefined, graceWindow: b.graceWindow, output: b.output, txHashes: b.txHashes },
+        })
+      }
+      setWatch({ phase: 'idle' })
       await ctx.refresh()
     } catch (e) {
-      setWatch({ phase: 'error', message: (e as Error).message })
+      setWatch({ phase: 'error', mode, message: (e as Error).message })
     }
   }
 
   const busyFlow = ['offering', 'accepting', 'calling', 'waiting', 'acknowledging'].includes(phase)
+  const running = watch.phase === 'running'
   const label: Record<string, string> = { offering: 'Posting the offer', accepting: 'Confirm in your wallet', calling: 'Calling the API', waiting: 'Waiting for the answer onchain', acknowledging: 'Confirm in your wallet' }
+  const canAck = shown?.kind === 'own' && job?.status === Status.Responded && !settlement && !!wallet.address && job.buyer.toLowerCase() === wallet.address.toLowerCase()
 
   return (
     <section aria-labelledby="call-title" className="bg-card p-5" style={{ border: '1px solid var(--rule)' }}>
@@ -125,55 +138,49 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
       <p className="mt-1 data text-[14px]">price {fmtUsdc(PRICE)} · bond {fmtUsdc(BOND)} · window {RESPONSE_WINDOW_S} s · grace {GRACE_WINDOW_S} s</p>
       <p className="mt-2 text-[15px]">Our demo provider is an echo service: it answers with your input in capitals.</p>
       <div className="mt-3 flex flex-wrap gap-3">
-        <button className="btn btn-primary" onClick={() => void payAndCall()} disabled={busyFlow}>
+        <button className="btn btn-primary" onClick={() => void payAndCall()} disabled={busyFlow || running}>
           {busyFlow ? <span className="dots-wait">{label[phase]}</span> : wallet.address ? 'Pay & call' : 'Connect to pay & call'}
         </button>
-        <button className="btn" onClick={() => void watchIt()} disabled={watch.phase === 'running'}>
-          {watch.phase === 'running' ? <span className="dots-wait">Running</span> : `Watch it on ${NETWORK_NAME}`}
+        <button className="btn" onClick={() => void watchIt('normal')} disabled={running || busyFlow}>
+          {running && watch.mode === 'normal' ? <span className="dots-wait">Running</span> : `Watch it on ${NETWORK_NAME}`}
+        </button>
+        <button className="btn" onClick={() => void watchIt('buyer-silent')} disabled={running || busyFlow}>
+          {running && watch.mode === 'buyer-silent' ? <span className="dots-wait">Running</span> : 'Watch: buyer stays silent after the answer'}
         </button>
       </div>
       {phase === 'error' && <p role="alert" className="mt-3" style={{ color: 'var(--after)' }}>{error} <button className="link" onClick={() => void payAndCall()}>Try again</button></p>}
-
-      {jobId && phase !== 'idle' && phase !== 'error' && (
-        <div className="mt-4">
-          <Counterfoil id={jobId} price={job?.price ?? PRICE} bond={job?.bond ?? BOND} status={settlement?.classification.event ? STATUS_FOR_EVENT[settlement.classification.event] : (job?.status ?? Status.Accepted)} deadline={job?.deadline} respondedAt={job?.respondedAt} graceWindow={job?.graceWindow ?? GRACE_WINDOW_S} now={ctx.now} output={output ?? job?.output} settlement={settlement}>
-            {acceptTx && <p className="text-[14px]">your accept: <TxLink hash={acceptTx} /></p>}
-            {refusal && (
-              <p className="field text-[15px]" role="status">
-                The job route declined this job: {refusal.reason}. Settle path: {refusal.settle?.note ?? 'the sweep still answers within the deadline'}.
-              </p>
-            )}
-            {phase === 'responded' && !settlement && (
-              <div className="flex flex-wrap items-center gap-3">
-                <button className="btn btn-primary" onClick={() => void acknowledge()}>Acknowledge &amp; release payment</button>
-                <span className="text-[14px]" style={{ color: 'var(--muted)' }}>If you do not, the provider can claim after the grace window.</span>
-              </div>
-            )}
-            {claimable && (
-              <button className="btn" onClick={() => void ctx.settlements.settleJob(jobId)} disabled={ctx.settlements.settling[jobId]}>
-                {ctx.settlements.settling[jobId] ? <span className="dots-wait">Claiming</span> : 'Claim'}
-              </button>
-            )}
-            {phase === 'missed' && (
-              <div className="flex flex-wrap items-center gap-3">
-                <span>The provider missed the deadline.</span>
-                <button className="btn btn-primary" onClick={() => void timeoutFromWallet()}>Call timeout from your wallet</button>
-              </div>
-            )}
-          </Counterfoil>
-        </div>
-      )}
-
       {watch.phase === 'busy' && watch.body && <BusyNotice body={watch.body} now={ctx.now} settle={ctx.settle} />}
       {watch.phase === 'error' && <p role="alert" className="mt-3" style={{ color: 'var(--after)' }}>{watch.message}</p>}
-      {watch.phase === 'done' && watch.body?.jobId && (
+
+      {shown && (
         <div className="mt-4">
-          <Counterfoil id={watch.body.jobId} price={PRICE} bond={BOND} status={Status.Paid} now={ctx.now} output={watch.body.output} settlement={ctx.settlements.byJob[watch.body.jobId]}>
-            <p className="text-[14px]" style={{ color: 'var(--muted)' }}>
-              {Object.entries(watch.body.txHashes ?? {}).map(([k, h]) => (h ? <span key={k} className="mr-3">{k} <TxLink hash={h} /></span> : null))}
-            </p>
-            {watch.body.deadline ? <p className="text-[14px]">answered before the deadline at <span className="data">{blockTime(watch.body.deadline)}</span></p> : null}
-          </Counterfoil>
+          <TrackedCard
+            ctx={ctx}
+            id={shown.id}
+            kind={shown.kind}
+            fallback={active?.id === shown.id ? active.fallback : undefined}
+            extra={
+              <>
+                {refusal && shown.kind === 'own' && (
+                  <p className="field text-[15px]" role="status">
+                    The job route declined this job: {refusal.reason}. Settle path: {refusal.settle?.note ?? 'the sweep still answers within the deadline'}.
+                  </p>
+                )}
+                {canAck && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button className="btn btn-primary" onClick={() => void acknowledge()} disabled={phase === 'acknowledging'}>Acknowledge &amp; release payment</button>
+                    <span className="text-[14px]" style={{ color: 'var(--muted)' }}>If you do not, the provider can claim after the grace window.</span>
+                  </div>
+                )}
+                {phase === 'missed' && shown.kind === 'own' && !settlement && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span>The provider missed the deadline.</span>
+                    <button className="btn btn-primary" onClick={() => void timeoutFromWallet()}>Call timeout from your wallet</button>
+                  </div>
+                )}
+              </>
+            }
+          />
         </div>
       )}
     </section>

@@ -1,33 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Status } from '@/lib/abi'
 import { api } from '@/lib/api'
 import type { DemoRunBody } from '@/lib/api'
 import { NETWORK_NAME, fmtUsdc } from '@/lib/appConfig'
-import { addMine } from '@/lib/mine'
 import { BOND, GRACE_WINDOW_S, PRICE, RESPONSE_WINDOW_S } from '@/lib/terms'
 import { BusyNotice } from './BusyNotice'
+import { TrackedCard } from './TrackedCard'
+import type { CardFallback } from './TrackedCard'
 import type { FlowCtx } from './types'
-import { Counterfoil, STATUS_FOR_EVENT, TxLink } from './ui'
 
-const KEY = 'replybond.miss'
-
-/** "Make the API miss its deadline": a silent demo job, settled by this page at deadline + 2 s. */
+/** "Make the API miss its deadline": a silent demo job, settled by this page when the countdown ends (App owns that call). */
 export function MissPanel({ ctx }: { ctx: FlowCtx }) {
   const [phase, setPhase] = useState<'idle' | 'starting' | 'busy' | 'error'>('idle')
   const [busy, setBusy] = useState<DemoRunBody | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [started, setStarted] = useState<{ jobId: string; deadline: number; txHashes: Record<string, string | null> } | null>(null)
-  const [trackedId, setTrackedId] = useState<string | null>(() => localStorage.getItem(KEY))
+  const [started, setStarted] = useState<{ id: string; fallback: CardFallback } | null>(null)
 
-  const job = trackedId ? ctx.jobs.find((j) => String(j.id) === trackedId) : undefined
-  const settlement = trackedId ? ctx.settlements.byJob[trackedId] : undefined
-  const settling = trackedId ? ctx.settlements.settling[trackedId] : false
-  const settleError = trackedId ? ctx.settlements.errors[trackedId] : undefined
-
-  // If this job settled earlier (reload), read its receipt so the card shows the real outcome.
-  useEffect(() => {
-    if (trackedId && job?.txs.settled && !settlement) void ctx.settlements.load(trackedId, job.txs.settled)
-  }, [trackedId, job?.txs.settled, settlement, ctx.settlements])
+  // The job on show: the one just started, else a silent job restored from storage.
+  const shownId = started?.id ?? ctx.seen.find((t) => t.kind === 'silent')?.id ?? null
 
   const run = async () => {
     setPhase('starting')
@@ -40,11 +30,9 @@ export function MissPanel({ ctx }: { ctx: FlowCtx }) {
         setPhase('busy')
         return
       }
-      if (r.status !== 200 || !r.body.jobId || !r.body.deadline) throw new Error(r.body.error ?? `demo run failed (HTTP ${r.status})`)
-      addMine(r.body.jobId)
-      localStorage.setItem(KEY, r.body.jobId)
-      setTrackedId(r.body.jobId)
-      setStarted({ jobId: r.body.jobId, deadline: r.body.deadline, txHashes: r.body.txHashes ?? {} })
+      if (r.status !== 200 || !r.body.jobId || !r.body.deadline) throw new Error(r.body.error ?? `demo run failed (HTTP ${r.body.message ?? r.status})`)
+      ctx.track(r.body.jobId, 'silent', { deadline: r.body.deadline })
+      setStarted({ id: r.body.jobId, fallback: { deadline: r.body.deadline, status: Status.Accepted, txHashes: r.body.txHashes } })
       setPhase('idle')
       await ctx.refresh()
     } catch (e) {
@@ -52,11 +40,6 @@ export function MissPanel({ ctx }: { ctx: FlowCtx }) {
       setPhase('error')
     }
   }
-
-  const deadline = job?.deadline || (started && started.jobId === trackedId ? started.deadline : 0)
-  const settledEvent = settlement?.classification.event
-  const status = settledEvent ? STATUS_FOR_EVENT[settledEvent] : job ? job.status : started && started.jobId === trackedId ? Status.Accepted : null
-  const pastDeadline = status === Status.Accepted && deadline > 0 && ctx.now > deadline
 
   return (
     <section aria-labelledby="miss-title" className="bg-card p-5" style={{ border: '1px solid var(--rule)' }}>
@@ -70,27 +53,9 @@ export function MissPanel({ ctx }: { ctx: FlowCtx }) {
       </div>
       {phase === 'busy' && busy && <BusyNotice body={busy} now={ctx.now} settle={ctx.settle} />}
       {phase === 'error' && <p role="alert" className="mt-3" style={{ color: 'var(--after)' }}>{error}</p>}
-
-      {trackedId && status !== null && (
+      {shownId && (
         <div className="mt-4">
-          <Counterfoil id={trackedId} price={job?.price ?? PRICE} bond={job?.bond ?? BOND} status={status} deadline={deadline} now={ctx.now} settlement={settlement}>
-            {pastDeadline && !settlement && (
-              <div role="status" className="flex flex-wrap items-center gap-3">
-                <span className="data text-[14px]">{settling ? 'Calling timeout…' : 'Deadline passed. Calling timeout at deadline + 2 s…'}</span>
-                {settleError && (
-                  <>
-                    <span style={{ color: 'var(--after)' }}>{settleError}</span>
-                    <button className="btn" onClick={() => void ctx.settlements.settleJob(trackedId)} disabled={settling}>Settle again</button>
-                  </>
-                )}
-              </div>
-            )}
-            {started && started.jobId === trackedId && (
-              <p className="text-[14px]" style={{ color: 'var(--muted)' }}>
-                {Object.entries(started.txHashes).map(([k, h]) => (h ? <span key={k} className="mr-3">{k} <TxLink hash={h} /></span> : null))}
-              </p>
-            )}
-          </Counterfoil>
+          <TrackedCard ctx={ctx} id={shownId} kind="silent" fallback={started?.id === shownId ? started.fallback : undefined} />
           <p className="mt-2 text-[15px]">Anyone can call timeout; this page calls it for you.</p>
         </div>
       )}

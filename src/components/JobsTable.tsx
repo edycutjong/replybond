@@ -10,6 +10,7 @@ function Kind({ job, ctx }: { job: JobView; ctx: FlowCtx }) {
   const s = ctx.settlements.byJob[String(job.id)]
   if (job.status === Status.Withdrawn) return <span className="label ml-2">bond returned</span>
   if (!s) return null
+  if (s.unavailable) return <span className="label ml-2">reading receipt…</span>
   const k = s.classification.kind
   if (k === 'PAID' && job.status === Status.TimedOut) return <span className="label ml-2 px-1" style={{ color: 'var(--after)', border: '1px solid var(--after)' }}>Indemnity</span>
   if (k === 'PAID') return <span className="label ml-2">paid</span>
@@ -32,7 +33,7 @@ function Action({ job, ctx }: { job: JobView; ctx: FlowCtx }) {
   )
   let body: React.ReactNode = null
   if (job.status === Status.Accepted) {
-    body = ctx.now <= job.deadline ? <span className="data" style={{ color: 'var(--before)' }}>{mmss(job.deadline - ctx.now)}</span> : retry('Settle')
+    body = ctx.now <= job.deadline ? <span className="data" style={{ color: 'var(--before)' }}>{mmss(job.deadline - ctx.now)}</span> : retry('Settle now')
   } else if (job.status === Status.Responded) {
     const graceEnd = job.respondedAt + job.graceWindow
     if (ctx.now <= graceEnd) {

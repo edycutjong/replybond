@@ -1,6 +1,6 @@
 # ReplyBond
 
-Pay an API per call: if it misses its onchain deadline, you get your price back plus the provider's bond. The app is a one-page counter at `/` where you can settle a missed deadline, call the demo API with your own wallet, watch a demo job miss its deadline, and follow every job live from the contract's events. It also includes a small `POST /api/probe` route that sends a 0-value transaction from a configured wallet to itself.
+Pay an API per call: if it misses its onchain deadline, you get your price back plus the provider's bond. The app is a one-page counter at `/` where you can settle a missed deadline, call the demo API with your own wallet, watch a demo job miss its deadline, or watch the buyer stay silent after the answer (the provider then claims), and follow every job live from the contract's events. It also includes a small `POST /api/probe` route that sends a 0-value transaction from a configured wallet to itself.
 
 Built with [Arc Studio](https://studio.arc.io)
 

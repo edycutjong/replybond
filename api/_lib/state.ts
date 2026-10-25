@@ -59,14 +59,25 @@ async function scanFrom(head: bigint, headTs: number): Promise<bigint> {
   return from > c.startBlock ? from : c.startBlock
 }
 
+type ParsedLog = ReturnType<typeof parseEventLogs<typeof replyBondAbi>>[number]
+let eventCache: { startedAt: number; from: bigint; scanned: bigint; logs: ParsedLog[] } | null = null
+
 export async function loadSnapshot(): Promise<Snapshot> {
   const c = ctx()
   const latest = await c.pub.getBlock()
   const head = latest.number
   const now = Number(latest.timestamp)
-  const fromBlock = await scanFrom(head, now)
-  const raw = await getLogsChunked(fromBlock, head)
-  const logs = parseEventLogs({ abi: replyBondAbi, logs: raw })
+  // Incremental event cache per instance (no reorgs on Arc): the first call scans the ~25h window, later calls only the new blocks.
+  if (!eventCache || Date.now() - eventCache.startedAt > 60 * 60 * 1000) {
+    eventCache = { startedAt: Date.now(), from: await scanFrom(head, now), scanned: -1n, logs: [] }
+  }
+  const fromBlock = eventCache.from
+  const start = eventCache.scanned < 0n ? fromBlock : eventCache.scanned + 1n
+  if (start <= head) {
+    const fresh = parseEventLogs({ abi: replyBondAbi, logs: await getLogsChunked(start, head) })
+    eventCache = { ...eventCache, scanned: head, logs: [...eventCache.logs, ...fresh] }
+  }
+  const logs = [...eventCache.logs]
   logs.sort((a, b) =>
     a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1,
   )

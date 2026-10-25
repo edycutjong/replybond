@@ -1,0 +1,81 @@
+// Real Arc Testnet receipts (logs as returned by eth_getTransactionReceipt), used to pin classifyReceipt.
+
+export interface RealReceipt { txHash: string; status: string; logs: { address: string; topics: string[]; data: string }[] }
+
+export const acknowledge41: RealReceipt = {
+  "txHash": "0x76edec29edd89736a4a32c1f8bdeea433d4f99f37a36c3ee8eff7e4cfb985985",
+  "status": "success",
+  "logs": [
+    {
+      "address": "0x1234fb0fb613d284d98bbe2ff89045aae5d22458",
+      "topics": [
+        "0x9c9c7be79d0a80d50ba29cc761ba8a73fe24080e7acf62b83bf2dbf0c5096b0c",
+        "0x0000000000000000000000000000000000000000000000000000000000000029",
+        "0x000000000000000000000000acf379d9c76d58637690447ffdeb683c2ad72d5a"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000354a6ba7a18000"
+    },
+    {
+      "address": "0xfffffffffffffffffffffffffffffffffffffffe",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000001234fb0fb613d284d98bbe2ff89045aae5d22458",
+        "0x000000000000000000000000acf379d9c76d58637690447ffdeb683c2ad72d5a"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000354a6ba7a18000"
+    }
+  ]
+}
+
+export const claim25: RealReceipt = {
+  "txHash": "0xf3ad40f76107ab86a8760887660c5461ad4e19ffb3efbc7cddae543ac40a713c",
+  "status": "success",
+  "logs": [
+    {
+      "address": "0x1234fb0fb613d284d98bbe2ff89045aae5d22458",
+      "topics": [
+        "0xc2618f953d4fdd3af6e22adc3c2c9cde2277fac47c72e99d6233edf27ce62f53",
+        "0x0000000000000000000000000000000000000000000000000000000000000019",
+        "0x000000000000000000000000acf379d9c76d58637690447ffdeb683c2ad72d5a",
+        "0x000000000000000000000000acf379d9c76d58637690447ffdeb683c2ad72d5a"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000354a6ba7a18000"
+    },
+    {
+      "address": "0xfffffffffffffffffffffffffffffffffffffffe",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000001234fb0fb613d284d98bbe2ff89045aae5d22458",
+        "0x000000000000000000000000acf379d9c76d58637690447ffdeb683c2ad72d5a"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000354a6ba7a18000"
+    }
+  ]
+}
+
+export const timeout23: RealReceipt = {
+  "txHash": "0xe1c6809cec72e0f9f1c8763370882d87762fc0da8f92db8b3e6be1d4374e9017",
+  "status": "success",
+  "logs": [
+    {
+      "address": "0x1234fb0fb613d284d98bbe2ff89045aae5d22458",
+      "topics": [
+        "0x506f72ca1dad25723e925f708d1c8a6e805357c74a704fc916b4e89d65d375f6",
+        "0x0000000000000000000000000000000000000000000000000000000000000017",
+        "0x000000000000000000000000453c79161dc015553000a9a7628bf1e5c62f37c1",
+        "0x000000000000000000000000453c79161dc015553000a9a7628bf1e5c62f37c1"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000354a6ba7a18000"
+    },
+    {
+      "address": "0xfffffffffffffffffffffffffffffffffffffffe",
+      "topics": [
+        "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+        "0x0000000000000000000000001234fb0fb613d284d98bbe2ff89045aae5d22458",
+        "0x000000000000000000000000453c79161dc015553000a9a7628bf1e5c62f37c1"
+      ],
+      "data": "0x00000000000000000000000000000000000000000000000000354a6ba7a18000"
+    }
+  ]
+}
+

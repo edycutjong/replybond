@@ -76,7 +76,8 @@ function build() {
   if (!isAddress(rawAddr)) throw new HttpError(500, 'REPLYBOND_ADDRESS is not a valid address')
   const replyBond = getAddress(rawAddr)
   const chain = resolveChain()
-  const transport = http(resolveRpcUrl(chain))
+  // A rate-limited RPC (-32005) is retried with exponential backoff before the request fails.
+  const transport = http(resolveRpcUrl(chain), { retryCount: 6, retryDelay: 400 })
   const startEnv = process.env.REPLYBOND_START_BLOCK?.trim() || sharedEnv('VITE_REPLYBOND_START_BLOCK')
   const startBlock = startEnv
     ? BigInt(startEnv)

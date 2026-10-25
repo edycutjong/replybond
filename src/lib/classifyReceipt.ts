@@ -45,11 +45,16 @@ const topicAddress = (t: string) => `0x${t.slice(-40)}`.toLowerCase()
  *  UNREADABLE anything else: no receipt, failed, no settle event, or no matching Transfer.
  * Arc emits the Transfer log for contract payouts (checked on testnet receipts), so there is no event-only fallback.
  */
-export function classifyReceipt(receipt: ReceiptLike | null | undefined, contract: Address): Classification {
-  if (!receipt) return none('receipt unavailable')
-  if (receipt.status !== 'success') return none('transaction did not succeed')
+export function classifyReceipt(input: ReceiptLike | null | undefined, contract: Address): Classification {
+  if (!input) return none('receipt unavailable')
+  if (input.status !== 'success') return none('transaction did not succeed')
+  // Hex case varies between RPC providers (checksummed addresses, upper-case topics); compare and decode in lower case.
+  const receipt = {
+    status: input.status,
+    logs: input.logs.map((l) => ({ address: l.address.toLowerCase(), topics: l.topics.map((t) => t.toLowerCase()), data: l.data.toLowerCase() })),
+  }
 
-  const mine = receipt.logs.filter((l) => l.address.toLowerCase() === contract.toLowerCase())
+  const mine = receipt.logs.filter((l) => l.address === contract.toLowerCase())
   let events: ReturnType<typeof parseEventLogs<typeof replyBondAbi>>
   try {
     events = parseEventLogs({ abi: replyBondAbi, logs: mine as unknown as Log[] })
@@ -74,7 +79,7 @@ export function classifyReceipt(receipt: ReceiptLike | null | undefined, contrac
     (l) =>
       l.address.toLowerCase() === SYSTEM_EMITTER.toLowerCase() &&
       l.topics.length === 3 &&
-      l.topics[0] === TRANSFER_TOPIC &&
+      l.topics[0].toLowerCase() === TRANSFER_TOPIC &&
       topicAddress(l.topics[1]) === contract.toLowerCase() &&
       topicAddress(l.topics[2]) === settle.payee.toLowerCase() &&
       BigInt(l.data as Hex) === settle.amount,

@@ -4,6 +4,7 @@ import { encodeEventTopics, pad, toHex } from 'viem'
 import type { Address } from 'viem'
 import { replyBondAbi } from '../src/lib/abi'
 import { SYSTEM_EMITTER, classifyReceipt } from '../src/lib/classifyReceipt'
+import { acknowledge41, claim25, timeout23 } from './fixtures/receipts'
 import type { ReceiptLike } from '../src/lib/classifyReceipt'
 
 const CONTRACT: Address = '0x1234fb0fb613d284d98bbe2ff89045aae5d22458'
@@ -64,4 +65,50 @@ test('UNREADABLE: no receipt, failed receipt, no Transfer, wrong payee, wrong am
   assert.equal(classifyReceipt(ok(timedOut, transfer(BUYER, AMOUNT - 1n)), CONTRACT).kind, 'UNREADABLE')
   assert.equal(classifyReceipt(ok(timedOut, transfer(BUYER, AMOUNT, PROVIDER)), CONTRACT).kind, 'UNREADABLE')
   assert.equal(classifyReceipt(ok(transfer(BUYER)), CONTRACT).kind, 'UNREADABLE')
+})
+
+// --- Real receipts (Arc Testnet) -------------------------------------------------------------------------
+const PROVIDER_HOSTED: Address = '0xacf379d9c76d58637690447ffdeb683c2ad72d5a'
+const BUYER_HOSTED: Address = '0x453c79161dc015553000a9a7628bf1e5c62f37c1'
+
+test('real acknowledge receipt (job 41, JobPaid): PAID to the provider, price + bond', () => {
+  const c = classifyReceipt(acknowledge41, CONTRACT)
+  assert.equal(c.kind, 'PAID')
+  assert.equal(c.event, 'JobPaid')
+  assert.equal(c.jobId, 41n)
+  assert.equal(c.payee?.toLowerCase(), PROVIDER_HOSTED)
+  assert.equal(c.amount, AMOUNT)
+})
+
+test('real claim receipt (job 25, JobClaimed): PAID to the provider', () => {
+  const c = classifyReceipt(claim25, CONTRACT)
+  assert.deepEqual([c.kind, c.event, c.payee?.toLowerCase(), c.amount], ['PAID', 'JobClaimed', PROVIDER_HOSTED, AMOUNT])
+})
+
+test('real timeout receipt (job 23, JobTimedOut): PAID to the buyer', () => {
+  const c = classifyReceipt(timeout23, CONTRACT)
+  assert.deepEqual([c.kind, c.event, c.payee?.toLowerCase(), c.amount], ['PAID', 'JobTimedOut', BUYER_HOSTED, AMOUNT])
+})
+
+test('the same real receipts still classify when the contract is given in checksum case and the RPC upper-cases hex', () => {
+  const checksummed = '0x1234fB0fb613D284d98bBE2fF89045AaE5d22458' as Address
+  for (const r of [acknowledge41, claim25, timeout23]) {
+    const upper: ReceiptLike = {
+      status: r.status,
+      logs: r.logs.map((l) => ({ address: l.address.toUpperCase().replace('0X', '0x'), topics: l.topics.map((x) => x.toUpperCase().replace('0X', '0x')), data: l.data })),
+    }
+    assert.equal(classifyReceipt(r, checksummed).kind, 'PAID')
+    assert.equal(classifyReceipt(upper, checksummed).kind, 'PAID')
+  }
+})
+
+test('real receipts are not PAID when the Transfer goes to the wrong party or for the wrong amount', () => {
+  // acknowledge pays the provider; if the Transfer had gone to the buyer instead, the receipt must not read as PAID
+  const wrongPayee: ReceiptLike = {
+    status: 'success',
+    logs: [acknowledge41.logs[0]!, { ...acknowledge41.logs[1]!, topics: [acknowledge41.logs[1]!.topics[0]!, acknowledge41.logs[1]!.topics[1]!, addrTopic(BUYER_HOSTED)] }],
+  }
+  assert.equal(classifyReceipt(wrongPayee, CONTRACT).kind, 'UNREADABLE')
+  const shortAmount: ReceiptLike = { status: 'success', logs: [acknowledge41.logs[0]!, { ...acknowledge41.logs[1]!, data: word(AMOUNT - 1n) }] }
+  assert.equal(classifyReceipt(shortAmount, CONTRACT).kind, 'UNREADABLE')
 })

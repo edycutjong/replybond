@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Status } from '@/lib/abi'
 import { CallApiPanel } from './components/CallApiPanel'
 import { Header } from './components/Header'
@@ -14,8 +14,11 @@ import { useSettlements } from './hooks/useSettlements'
 import { api } from './lib/api'
 import type { SweepBody } from './lib/api'
 import { CONTRACT } from './lib/appConfig'
-import { readMine } from './lib/mine'
+import { addMine } from './lib/mine'
+import { addTracked, readTracked, removeTracked } from './lib/tracked'
+import type { TrackedExtra, TrackedKind } from './lib/tracked'
 import { isPoolStock } from './lib/pool'
+import { GRACE_WINDOW_S } from './lib/terms'
 
 // One sweep per page load (React StrictMode would otherwise run the effect twice in development).
 let sweepOnLoad: ReturnType<typeof api.sweep> | null = null
@@ -27,7 +30,16 @@ export default function App() {
   const [sweep, setSweep] = useState<SweepBody | null>(null)
   const [sweepNote, setSweepNote] = useState<string>('Sweeping…')
   const [focus, setFocus] = useState<bigint | null>(null)
-  const settlements = useSettlements(refresh)
+  // Jobs this visitor started: persisted (when storage works) so a reload resumes or settles them.
+  const [tracked, setTracked] = useState(() => readTracked())
+  const [seen, setSeen] = useState(tracked)
+  const track = useCallback((id: string, kind: TrackedKind, extra?: TrackedExtra) => {
+    addMine(id)
+    setTracked((l) => addTracked(l, id, kind, extra))
+    setSeen((l) => [{ id, kind, at: Date.now(), ...extra }, ...l.filter((t) => t.id !== id)])
+  }, [])
+  const untrack = useCallback((id: string) => setTracked((l) => (l.some((t) => t.id === id) ? removeTracked(l, id) : l)), [])
+  const settlements = useSettlements(refresh, untrack)
   const settle = useSettleNow(refresh, chainNow)
 
   useEffect(() => {
@@ -56,30 +68,45 @@ export default function App() {
   const rows = useMemo(() => ours.filter((j) => !stock.includes(j)), [ours, stock])
   const ready = stock.filter((j) => now > j.deadline).length
 
-  // Settled jobs: read each settle receipt from the chain and classify it (newest 25).
+  // Settled jobs: read and classify each settle receipt (newest 25). A receipt the browser could not fetch is retried.
+  const retried = useRef(new Map<string, number>())
   useEffect(() => {
     for (const j of ours.slice(0, 25)) {
       const id = String(j.id)
-      if (j.txs.settled && !settlements.byJob[id]) void settlements.load(id, j.txs.settled)
+      const s = settlements.byJob[id]
+      if (!j.txs.settled || settlements.reading[id] || (s && !s.unavailable)) continue
+      if (s && Date.now() - (retried.current.get(id) ?? 0) < 15_000) continue
+      retried.current.set(id, Date.now())
+      void settlements.load(id, j.txs.settled)
     }
   }, [ours, settlements])
 
-  // Restored pending jobs: at deadline + 2 s call settle for the demo jobs this browser started.
-  const tried = useRef(new Set<string>())
+  // Countdown end: when a job this visitor started passes its deadline (or grace), call /api/settle {jobId}; the call is
+  // idempotent and retried with backoff. It also runs after a reload: a job already past due is settled at once, one still
+  // counting resumes. Timing comes from chain events when they load and from the stored copy when they do not.
+  const attempted = useRef(new Set<string>())
   useEffect(() => {
-    const mine = new Set(readMine())
-    const buyer = demoBuyer?.toLowerCase()
-    for (const j of ours) {
-      const id = String(j.id)
-      if (!mine.has(id) || tried.current.has(id) || !buyer) continue
-      if (j.status === Status.Accepted && j.buyer.toLowerCase() === buyer && now >= j.deadline + 2) {
-        tried.current.add(id)
-        void settlements.settleJob(id)
+    for (const t of tracked) {
+      const j = ours.find((x) => String(x.id) === t.id)
+      if (j && j.status >= Status.Paid) {
+        setTimeout(() => untrack(t.id), 0) // settled: clear the stored id
+        continue
+      }
+      const status = j?.status ?? (t.respondedAt ? Status.Responded : Status.Accepted)
+      const deadline = j?.deadline || t.deadline || 0
+      const respondedAt = j?.respondedAt || t.respondedAt || 0
+      const grace = j?.graceWindow ?? t.graceWindow ?? GRACE_WINDOW_S
+      const timeoutDue = status === Status.Accepted && deadline > 0 && now > deadline + 1 && t.kind !== 'own' // a wallet times out its own job
+      const claimDue = status === Status.Responded && respondedAt > 0 && now > respondedAt + grace + 1
+      const key = `${t.id}:${timeoutDue ? 'timeout' : 'claim'}`
+      if ((timeoutDue || claimDue) && !attempted.current.has(key)) {
+        attempted.current.add(key)
+        void settlements.settleJob(t.id)
       }
     }
   })
 
-  const ctx: FlowCtx = useMemo(() => ({ jobs: ours, now, refresh, settlements, settle, sweep }), [ours, now, refresh, settlements, settle, sweep])
+  const ctx: FlowCtx = useMemo(() => ({ jobs: ours, now, refresh, settlements, settle, sweep, tracked, seen, track }), [ours, now, refresh, settlements, settle, sweep, tracked, seen, track])
 
   // Hero: the latest real settled timeout of this provider, judged by classifyReceipt once its receipt is read.
   const latestTimeout = ours.find((j) => j.status === Status.TimedOut && j.txs.settled)

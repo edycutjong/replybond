@@ -67,10 +67,15 @@ export interface SettleBody {
   pool?: PoolStatus
 }
 
+export type DemoMode = 'normal' | 'silent' | 'buyer-silent'
+
 export interface DemoRunBody {
   error?: string
   message?: string
-  mode?: 'normal' | 'silent'
+  mode?: DemoMode
+  respondedAt?: number | null
+  graceWindow?: number
+  receipt?: ReceiptSummary | null
   jobId?: string
   deadline?: number
   output?: string
@@ -107,7 +112,7 @@ export const api = {
   sweep: () => call<SweepBody>('/api/sweep', 'GET'),
   settle: (jobId?: string) => call<SettleBody>('/api/settle', 'POST', jobId === undefined ? {} : { jobId }),
   refill: () => call<Record<string, unknown>>('/api/demo-refill', 'GET'),
-  demoRun: (mode: 'normal' | 'silent') => call<DemoRunBody>('/api/demo-run', 'POST', { mode }),
+  demoRun: (mode: DemoMode) => call<DemoRunBody>('/api/demo-run', 'POST', { mode }),
   offer: (buyer: Address) => call<OfferBody>('/api/offer', 'POST', { buyer }),
   job: (jobId: string) => call<JobBody>('/api/job', 'POST', { jobId }),
 }

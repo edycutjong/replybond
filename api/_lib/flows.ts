@@ -58,7 +58,11 @@ function limited(kind: 'busy' | 'rate_limited', snap: Snapshot, rate: ReturnType
   }
 }
 
-export async function demoRun(mode: Mode): Promise<JobResult> {
+/** 'buyer-silent': a normal job that the provider answers and the demo buyer never acknowledges (the claim path). */
+export type DemoMode = Mode | 'buyer-silent'
+export const isDemoMode = (v: unknown): v is DemoMode => v === 'normal' || v === 'silent' || v === 'buyer-silent'
+
+export async function demoRun(mode: DemoMode): Promise<JobResult> {
   const sweep = await runSweep()
   const snap = await loadSnapshot()
   const rate = rateStatus(snap, 1)
@@ -66,7 +70,7 @@ export async function demoRun(mode: Mode): Promise<JobResult> {
   const busy = await busyStatus(snap)
   if (busy.busy) return { status: 409, body: limited('busy', snap, rate, busy) }
 
-  const record = recordByMode(mode)
+  const record = recordByMode(mode === 'silent' ? 'silent' : 'normal')
   const posted = await postOffer(record, ctx().demoBuyerAddress)
   const accepted = await acceptAsDemoBuyer(posted.jobId)
   const txHashes: Record<string, Hex | null> = { postOffer: posted.txHash, acceptOffer: accepted.txHash }
@@ -75,13 +79,31 @@ export async function demoRun(mode: Mode): Promise<JobResult> {
   const answered = await respondToJob(posted.jobId, 'normal')
   if (answered.status !== 200) return { status: 502, body: { error: 'job route refused our own demo job', jobId: posted.jobId, txHashes, detail: answered.body } }
   txHashes.respond = (answered.body.txHash as Hex | null) ?? null
+  if (mode === 'buyer-silent') {
+    // The demo buyer does not acknowledge: after the (unchanged) grace window the provider claims.
+    const answeredJob = await readJob(posted.jobId)
+    return {
+      status: 200,
+      body: {
+        mode,
+        jobId: posted.jobId,
+        deadline: accepted.deadline,
+        respondedAt: answeredJob?.respondedAt ?? null,
+        graceWindow: Number(GRACE_WINDOW),
+        output: answered.body.output,
+        responseHash: answered.body.responseHash,
+        txHashes,
+        sweep: sweepSummary(sweep),
+      },
+    }
+  }
   const ack = await sendTx('buyer', 'acknowledge', [posted.jobId], {
     precheck: async () => ((await readJob(posted.jobId))?.status === Status.Responded ? null : 'job is not Responded'),
   })
   txHashes.acknowledge = ack.hash
   return {
     status: 200,
-    body: { mode, jobId: posted.jobId, deadline: accepted.deadline, output: answered.body.output, responseHash: answered.body.responseHash, finalStatus: 'Paid', txHashes, sweep: sweepSummary(sweep) },
+    body: { mode, jobId: posted.jobId, deadline: accepted.deadline, output: answered.body.output, responseHash: answered.body.responseHash, finalStatus: 'Paid', txHashes, receipt: await receiptSummary(ack.hash), sweep: sweepSummary(sweep) },
   }
 }
 
