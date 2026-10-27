@@ -12,9 +12,9 @@
 
 **Example settlement (timeout):** [`0x7312e5db…3a77`](https://explorer.arc.io/tx/0x7312e5db712a360e5b582e0f0afa0a9b96e4ce228d89036d6fcd5aae26783a77) · 0.015 USDC back to the buyer
 
-**Built in Arc Studio:** https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4
+**Built in Arc Studio:** https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4 (opens with an Arc Studio login)
 
-**Tests:** `forge test`: 66 passed, 0 failed (63 unit and fuzz tests, 3 invariants at 256 runs of 128,000 calls each) · `bun test tests/`: 78 passed, 0 failed (12 files)
+**Tests:** `forge test`: 66 passed, 0 failed (63 unit and fuzz tests, 3 invariants at 256 runs of 128,000 calls each) · `bun test tests/`: 90 passed, 0 failed (13 files)
 
 </div>
 
@@ -49,7 +49,7 @@ Payouts use a native send capped at 100,000 gas (`PAYOUT_GAS`) that never copies
 
 ## Mainnet proof
 
-One full run on Arc mainnet (chain 5042), every transaction sent to the contract above with status 1.
+One run on Arc mainnet covering all three settlement paths (jobs 5, 6 and 7); every transaction below was sent to the contract above with status 1.
 
 | Step | Transaction | Result |
 |---|---|---|
@@ -65,7 +65,7 @@ One full run on Arc mainnet (chain 5042), every transaction sent to the contract
 - **Delivery, not correctness.** The contract proves the output was delivered onchain on time. It does not prove the output is correct. Outputs are public and at most 1,024 bytes.
 - **Demo terms.** Demo jobs use a price of 0.010 USDC, a bond of 0.005 USDC, a 45 s response window and a 120 s grace window.
 - **Offer limits are global and best-effort.** The demo allows 20 new offers per hour and 80 per day across all visitors (`LIMITS` in `api/_lib/config.ts`). They are counted from onchain history, not from a database, so two simultaneous requests can both take the last slot.
-- **A wallet floor.** New demo runs pause when either demo wallet holds less than 0.1 USDC (`MIN_WALLET_BALANCE`). Settling stays open.
+- **A wallet floor.** New demo runs and pool refills pause when either demo wallet holds less than 0.1 USDC (`MIN_WALLET_BALANCE`); the own-wallet offer path checks only the provider wallet. Settling stays open.
 - **No always-on worker.** The demo provider answers only while some request runs the sweep: a page load, an API call, or the daily cron. A buyer who accepts a job and never calls the API can therefore time it out and collect the bond.
 - **The provider here is an echo service.** It answers with the input in capitals, so the proof is about timing and payment, not about useful answers.
 
@@ -82,7 +82,7 @@ The app and contract were built in [Arc Studio](https://studio.arc.io/app/aaea9a
 | `9417730` | fix 4.2 | The counterfoil and stamp hero, the withdrawn label, badge placement, a current-provider job table with collapsed pool stock, and pool stock exempt from the busy rule. |
 | `11b4bfc` | fix 4.3 | Receipt read retries (no stored UNREADABLE on RPC errors), classifying settle-route receipts, and the buyer-silent watch mode with a grace countdown and automatic claim. |
 | `f674874` | fix 4.4 | The event cache moved behind a box and `nextScanStart()`, so Vercel's file tracer no longer folds BigInt math on a null binding (a build fix). The mainnet contract was deployed from this source. |
-| `34b3bb1` | assets | 11 media files synced to `docs/assets` (media, not code). |
+| `34b3bb1` | assets (media sync, not a Studio turn) | 11 media files synced to `docs/assets` (media, not code). |
 | `d973d46` | turn p41-5a | Server hardening: cron rotation, an empty-pool settle body, the 20/hour and 80/day limits with a wallet floor, idempotent `sendTx`, sweep priority and caps, paged event scans. |
 | `5d1bd77` | turn p41-5b (part 1) | Client fixes, the "Arc mainnet" label from config, a no-wrap stamp amount with an ink texture, the hero proof fallback, and a jobs table that falls back to chain reads. |
 | `181b718` | turn p41-5c | The client pass finished: accept-cancel retry, paged log scan with a concurrency cap, retry and backoff, a page cache, and 73 Bun tests at that commit. |

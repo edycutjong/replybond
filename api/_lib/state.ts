@@ -3,8 +3,9 @@ import type { Address, Hex } from 'viem'
 import { replyBondAbi, Status } from '../../src/lib/abi.js'
 import { LIMITS, MIN_WALLET_BALANCE, POOL_TARGET, ctx, sameAddr } from './config.js'
 import type { Deps } from './deps.js'
+import { HttpError } from './http.js'
 import { isPoolStock } from '../../src/lib/pool.js'
-import { orderLogs, pageLogs } from '../../src/lib/pageLogs.js'
+import { fetchRanges, gridRanges, orderLogs } from '../../src/lib/pageLogs.js'
 import { recordByHash } from './fixtures.js'
 import type { Mode, OfferRecord } from './fixtures.js'
 
@@ -32,13 +33,23 @@ export interface Snapshot {
   jobs: Job[] // every job posted by OUR provider inside the scanned window, by id
 }
 
+/** Serverless scan settings: 10,000-block pages, 8 at a time, and a budget that keeps one call inside the 60 s limit. */
+export const SCAN_PAGE_SIZE = 10_000n
+export const SCAN_CONCURRENCY = 8
+export const SCAN_BUDGET_MS = 45_000
+/** A page still running this long after the budget is given up on (its result is dropped, the next call refetches it). */
+export const SCAN_ABANDON_AFTER_MS = 8_000
+export const WARMING_UP_RETRY_SECONDS = 5
+
+type ScanDeps = Partial<Pick<Deps, 'pub' | 'now'>> & { budgetMs?: number; pageSize?: bigint; concurrency?: number }
+
 /** Start block for a ~25h scan: measured from recent block spacing, never earlier than the deployment block. */
-async function scanFrom(head: bigint, headTs: number): Promise<bigint> {
+async function scanFrom(pub: Deps['pub'], head: bigint, headTs: number): Promise<bigint> {
   const c = ctx()
   const span = head > 20_000n ? 20_000n : head > 1n ? head - 1n : 0n
   let secPerBlock = 0.5
   if (span > 0n) {
-    const sample = await c.pub.getBlock({ blockNumber: head - span })
+    const sample = await pub.getBlock({ blockNumber: head - span })
     const measured = (headTs - Number(sample.timestamp)) / Number(span)
     if (measured > 0.01) secPerBlock = measured
   }
@@ -48,18 +59,25 @@ async function scanFrom(head: bigint, headTs: number): Promise<bigint> {
 }
 
 type ParsedLog = ReturnType<typeof parseEventLogs<typeof replyBondAbi>>[number]
+interface AheadPage {
+  to: bigint
+  logs: ParsedLog[]
+}
 interface EventCache {
   startedAt: number
   from: bigint
+  /** Last block of the contiguous range [from, scanned] that is fully read; -1 before the first page. */
   scanned: bigint
   logs: ParsedLog[]
+  /** Pages read out of order (a gap lies before them), by first block. They join `logs` once the gap is filled. */
+  ahead: Map<string, AheadPage>
 }
 
 // Kept behind accessor functions on purpose: @vercel/nft statically evaluates module-level bindings, and a bare
 // `let cache = null` made it fold `cache.scanned + 1n` into `undefined + 1n`, which throws inside the tracer.
 const cacheBox: { current: EventCache | null } = { current: null }
 const readCache = (): EventCache | null => cacheBox.current
-const writeCache = (next: EventCache): void => {
+const writeCache = (next: EventCache | null): void => {
   cacheBox.current = next
 }
 /** First block still to scan: the window start before the first scan, then the block after the last scanned one. */
@@ -67,25 +85,87 @@ function nextScanStart(cache: EventCache): bigint {
   return cache.scanned < 0n ? cache.from : cache.scanned + 1n
 }
 
-export async function loadSnapshot(): Promise<Snapshot> {
+/** Test seam: forget the instance's event cache. */
+export function resetEventCache(): void {
+  writeCache(null)
+}
+/** Test seam: how far the contiguous scan has got, and how many pages wait beyond a gap. */
+export function eventCacheState(): { from: bigint; scanned: bigint; ahead: number } | null {
+  const cache = readCache()
+  return cache ? { from: cache.from, scanned: cache.scanned, ahead: cache.ahead.size } : null
+}
+
+/** 503 for a cold instance whose scan did not finish inside its budget; the next call continues from the cache. */
+export function warmingUp(): HttpError {
+  return new HttpError(503, 'warming_up', { retryAfterSeconds: WARMING_UP_RETRY_SECONDS })
+}
+
+/**
+ * Reads the contract's events into the instance cache, in pages dispatched through a shared queue. Pages that finish are
+ * kept; `scanned` only advances over a contiguous range from the oldest block. If the budget runs out first, this
+ * throws warming_up and the next call carries on from what is cached.
+ */
+async function fillEventCache(pub: Deps['pub'], head: bigint, headTs: number, d: ScanDeps): Promise<EventCache> {
   const c = ctx()
-  const latest = await c.pub.getBlock()
+  const now = d.now ?? (() => Date.now())
+  const begun = now()
+  let cache = readCache()
+  if (!cache) {
+    cache = { startedAt: begun, from: await scanFrom(pub, head, headTs), scanned: -1n, logs: [], ahead: new Map() }
+    writeCache(cache)
+  }
+  const start = nextScanStart(cache)
+  if (start > head) return cache
+
+  const size = d.pageSize ?? SCAN_PAGE_SIZE
+  const budget = d.budgetMs ?? SCAN_BUDGET_MS
+  const planned = gridRanges(cache.from, start, head, size)
+  const todo = planned.filter(([from, to]) => cache.ahead.get(String(from))?.to !== to)
+  for (const [from, to] of planned) {
+    const held = cache.ahead.get(String(from))
+    if (held && held.to !== to) cache.ahead.delete(String(from)) // a page cut at an older head: read it again in full
+  }
+
+  let failure: unknown
+  try {
+    await fetchRanges((from, to) => pub.getLogs({ address: c.replyBond, fromBlock: from, toBlock: to }), todo, {
+      concurrency: d.concurrency ?? SCAN_CONCURRENCY,
+      now,
+      stopStartingAt: begun + budget,
+      abandonAt: begun + budget + SCAN_ABANDON_AFTER_MS,
+      onPage: (page) => cache.ahead.set(String(page.from), { to: page.to, logs: parseEventLogs({ abi: replyBondAbi, logs: page.items }) }),
+    })
+  } catch (err) {
+    failure = err
+  }
+
+  // Move pages into `logs` while they continue the contiguous range.
+  const logs = [...cache.logs]
+  let scanned = cache.scanned
+  for (let next = scanned < 0n ? cache.from : scanned + 1n; ; ) {
+    const hit = cache.ahead.get(String(next))
+    if (!hit) break
+    logs.push(...hit.logs)
+    cache.ahead.delete(String(next))
+    scanned = hit.to
+    next = hit.to + 1n
+  }
+  const updated: EventCache = { ...cache, scanned, logs }
+  writeCache(updated)
+  if (failure !== undefined) throw failure
+  if (nextScanStart(updated) <= head) throw warmingUp()
+  return updated
+}
+
+export async function loadSnapshot(deps: ScanDeps = {}): Promise<Snapshot> {
+  const c = ctx()
+  const pub = deps.pub ?? c.pub
+  const latest = await pub.getBlock()
   const head = latest.number
   const now = Number(latest.timestamp)
   // Incremental event cache per instance (no reorgs on Arc): the first call scans the ~25h window, later calls only the new blocks.
-  let cache = readCache()
-  if (!cache || Date.now() - cache.startedAt > 60 * 60 * 1000) {
-    cache = { startedAt: Date.now(), from: await scanFrom(head, now), scanned: -1n, logs: [] }
-    writeCache(cache)
-  }
+  const cache = await fillEventCache(pub, head, now, deps)
   const fromBlock = cache.from
-  const start = nextScanStart(cache)
-  if (start <= head) {
-    const raw = await pageLogs((from, to) => c.pub.getLogs({ address: c.replyBond, fromBlock: from, toBlock: to }), start, head)
-    const fresh = parseEventLogs({ abi: replyBondAbi, logs: raw })
-    cache = { ...cache, scanned: head, logs: [...cache.logs, ...fresh] }
-    writeCache(cache)
-  }
   const logs = orderLogs(cache.logs)
 
   const tsCache = new Map<bigint, number>()

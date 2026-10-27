@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { CHAIN_ID, CONTRACT, STUDIO_PROJECT_URL, addressUrl, fmtUsdc, shortHash } from '@/lib/appConfig'
 import { MAINNET_PROOF, sourcifyUrl } from '@/lib/proof'
-import { BOND, GRACE_WINDOW_S, MAX_OUTPUT_BYTES, PRICE, RESPONSE_WINDOW_S } from '@/lib/terms'
+import { BOND, DEMO_OFFER_LIMITS, GRACE_WINDOW_S, MAX_OUTPUT_BYTES, MIN_WALLET_BALANCE_NATIVE, PRICE, RESPONSE_WINDOW_S } from '@/lib/terms'
 import { ArrowRight, ExternalLink } from 'lucide-react'
 import { NavLink } from './NavLink'
 import { TxLink } from './ui'
@@ -27,7 +27,7 @@ export function OpenAppButton({ primary = false }: { primary?: boolean }) {
 
 const STEPS = [
   ['You pay, and the provider posts a bond.', 'The buyer pays the price into the contract. The provider has already locked a bond next to it.'],
-  ['The provider answers onchain before the deadline and is paid.', 'The answer is written to the chain with a hash of its bytes. The buyer can acknowledge it; if the buyer stays silent, the provider claims after a grace window.'],
+  ['The provider answers onchain before the deadline and is paid.', 'The answer is written to the chain with a hash of its bytes. The buyer can acknowledge it; if the buyer stays silent, anyone can trigger the claim after a grace window and the provider is paid.'],
   ['No answer means refund plus penalty.', 'Once the deadline has passed, anyone can call timeout. The buyer gets the price back plus the provider\'s bond.'],
 ] as const
 
@@ -156,7 +156,16 @@ export function LimitsAndNext() {
           The demo uses a price of <span className="data text-[15px]">{fmtUsdc(PRICE)}</span> USDC, a bond of <span className="data text-[15px]">{fmtUsdc(BOND)}</span> USDC, a{' '}
           {RESPONSE_WINDOW_S} s response window and a {GRACE_WINDOW_S} s grace window.
         </li>
+        <li>
+          Demo offers are limited to {DEMO_OFFER_LIMITS.hour} per hour and {DEMO_OFFER_LIMITS.day} per day across all visitors.
+        </li>
+        <li>
+          New demo runs pause when a demo wallet holds less than <span className="data text-[15px]">{fmtUsdc(MIN_WALLET_BALANCE_NATIVE)}</span> USDC. Settling stays open.
+        </li>
         <li>The demo provider is an echo service, and it answers only while some request runs the sweep.</li>
+        <li>
+          A buyer who accepts and never calls the API can time the job out and collect the bond (<span className="data text-[15px]">{fmtUsdc(BOND)}</span> USDC in the demo).
+        </li>
       </ul>
       <h3 className="panel-title mt-4" style={{ fontSize: 22 }}>What's next</h3>
       <ul className="grid gap-2 list-disc pl-5">

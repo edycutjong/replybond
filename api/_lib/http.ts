@@ -64,7 +64,10 @@ export function route(methods: string[], handler: Handler) {
       const out = await handler(req)
       send(res, out.status ?? 200, out.body)
     } catch (err) {
-      if (err instanceof HttpError) return send(res, err.statusCode, { error: err.message, ...err.extra })
+      if (err instanceof HttpError) {
+        if (typeof err.extra.retryAfterSeconds === 'number') res.setHeader('retry-after', String(err.extra.retryAfterSeconds))
+        return send(res, err.statusCode, { error: err.message, ...err.extra })
+      }
       const e = err as { shortMessage?: string; message?: string; name?: string }
       send(res, 500, { error: redact(e.shortMessage ?? e.message ?? 'internal error'), name: e.name })
     }

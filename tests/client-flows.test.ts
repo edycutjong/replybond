@@ -105,3 +105,44 @@ test('a wallets_low refill shows its message', async () => {
   const last = r.states[r.states.length - 1]
   assert.equal(last.phase === 'notready' ? last.message : null, 'The demo wallets are low on USDC.')
 })
+
+test('a 503 warming_up is retried after the advised wait, not treated as an error', async () => {
+  const { call } = await import('../src/lib/api')
+  const replies = [
+    { status: 503, body: { error: 'warming_up', retryAfterSeconds: 5 } },
+    { status: 503, body: { error: 'warming_up', retryAfterSeconds: 5 } },
+    { status: 200, body: { ok: true } },
+  ]
+  const slept: number[] = []
+  let calls = 0
+  const fetchImpl = (async () => {
+    const r = replies[calls++]
+    return { status: r.status, text: async () => JSON.stringify(r.body) }
+  }) as unknown as typeof fetch
+  const out = await call<{ ok?: boolean }>('/api/sweep', 'GET', undefined, { fetchImpl, sleep: async (ms) => void slept.push(ms) })
+  assert.equal(out.status, 200)
+  assert.equal(out.body.ok, true)
+  assert.equal(calls, 3)
+  assert.deepEqual(slept, [5000, 5000])
+})
+
+test('a server that keeps warming up ends as a friendly retryable message, other errors are returned at once', async () => {
+  const { call } = await import('../src/lib/api')
+  let calls = 0
+  const warming = (async () => {
+    calls++
+    return { status: 503, text: async () => JSON.stringify({ error: 'warming_up', retryAfterSeconds: 5 }) }
+  }) as unknown as typeof fetch
+  const out = await call<{ error?: string; warmingUp?: boolean }>('/api/settle', 'POST', {}, { fetchImpl: warming, sleep: async () => {} })
+  assert.equal(calls, 8)
+  assert.equal(out.status, 503)
+  assert.equal(out.body.warmingUp, true)
+  assert.match(out.body.error ?? '', /warming up/i)
+  let other = 0
+  const broken = (async () => {
+    other++
+    return { status: 500, text: async () => JSON.stringify({ error: 'boom' }) }
+  }) as unknown as typeof fetch
+  const err = await call<{ error?: string }>('/api/sweep', 'GET', undefined, { fetchImpl: broken, sleep: async () => {} })
+  assert.deepEqual([other, err.status, err.body.error], [1, 500, 'boom'])
+})

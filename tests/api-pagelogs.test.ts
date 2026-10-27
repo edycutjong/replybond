@@ -52,3 +52,28 @@ test('pageLogs: other errors are not retried by splitting', async () => {
   )
   assert.equal(calls, 1)
 })
+
+test('pageLogs takes the page size and the concurrency as arguments; the defaults are the browser values', async () => {
+  let inFlight = 0
+  let peak = 0
+  const spans: bigint[] = []
+  const fetch = async (from: bigint, to: bigint) => {
+    spans.push(to - from + 1n)
+    inFlight++
+    peak = Math.max(peak, inFlight)
+    await new Promise((r) => setTimeout(r, 4))
+    inFlight--
+    return [from]
+  }
+  const out = await pageLogs(fetch, 0n, 99_999n, 8, 10_000n)
+  assert.equal(out.length, 10)
+  assert.equal(spans.filter((x) => x === 10_000n).length, spans.length)
+  assert.equal(peak, 8)
+
+  spans.length = 0
+  peak = 0
+  await pageLogs(fetch, 0n, 99_999n) // defaults: 5,000-block pages, 4 at a time
+  assert.equal(spans.length, 20)
+  assert.equal(spans.filter((x) => x === 5_000n).length, spans.length)
+  assert.equal(peak, 4)
+})

@@ -5,20 +5,39 @@ export interface ApiReply<T> {
   body: T
 }
 
-async function call<T>(path: string, method: 'GET' | 'POST', payload?: unknown): Promise<ApiReply<T>> {
-  const res = await fetch(path, {
-    method,
-    headers: payload === undefined ? undefined : { 'content-type': 'application/json' },
-    body: payload === undefined ? undefined : JSON.stringify(payload),
-  })
-  const text = await res.text()
-  let body: unknown = {}
-  try {
-    body = text ? JSON.parse(text) : {}
-  } catch {
-    body = { error: text.slice(0, 200) || `HTTP ${res.status}` }
+/** A 503 {error: "warming_up"} means a cold server is still reading the chain: ask again in a few seconds, never give up at once. */
+export const WARMING_UP = 'warming_up'
+const WARMING_UP_TRIES = 8
+const WARMING_UP_DEFAULT_WAIT_S = 5
+
+export interface CallOptions {
+  fetchImpl?: typeof fetch
+  sleep?: (ms: number) => Promise<void>
+}
+
+export async function call<T>(path: string, method: 'GET' | 'POST', payload?: unknown, o: CallOptions = {}): Promise<ApiReply<T>> {
+  const doFetch = o.fetchImpl ?? fetch
+  const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+  for (let attempt = 0; ; attempt++) {
+    const res = await doFetch(path, {
+      method,
+      headers: payload === undefined ? undefined : { 'content-type': 'application/json' },
+      body: payload === undefined ? undefined : JSON.stringify(payload),
+    })
+    const text = await res.text()
+    let body: unknown = {}
+    try {
+      body = text ? JSON.parse(text) : {}
+    } catch {
+      body = { error: text.slice(0, 200) || `HTTP ${res.status}` }
+    }
+    const warming = res.status === 503 && (body as { error?: string }).error === WARMING_UP
+    if (!warming) return { status: res.status, body: body as T }
+    // The server refused before sending anything, so asking again is safe.
+    if (attempt + 1 >= WARMING_UP_TRIES) return { status: 503, body: { ...(body as object), error: 'The server is still warming up. Try again in a few seconds.', warmingUp: true } as T }
+    const wait = (body as { retryAfterSeconds?: number }).retryAfterSeconds
+    await sleep(1000 * (typeof wait === 'number' && wait > 0 ? wait : WARMING_UP_DEFAULT_WAIT_S))
   }
-  return { status: res.status, body: body as T }
 }
 
 export interface PoolStatus {
