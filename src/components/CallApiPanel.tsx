@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useModal } from 'connectkit'
 import { Status } from '@/lib/abi'
 import { useWalletActions, isUserRejection } from '@/hooks/useWalletActions'
-import { api } from '@/lib/api'
+import { api, walletsLowMessage } from '@/lib/api'
 import type { DemoRunBody, JobBody } from '@/lib/api'
 import { NETWORK_NAME, fmtUsdc } from '@/lib/appConfig'
 import { publicClient, readCommittedOutput } from '@/lib/chainReads'
@@ -24,6 +24,8 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [active, setActive] = useState<{ id: string; kind: TrackedKind; fallback?: CardFallback } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [lowWallets, setLowWallets] = useState(false)
   const [refusal, setRefusal] = useState<JobBody | null>(null)
   const [watch, setWatch] = useState<{ phase: 'idle' | 'running' | 'busy' | 'error'; mode?: 'normal' | 'buyer-silent'; body?: DemoRunBody; message?: string }>({ phase: 'idle' })
 
@@ -34,7 +36,6 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
   const job = shown ? ctx.jobs.find((j) => String(j.id) === shown.id) : undefined
 
   const fail = (e: unknown) => {
-    if (isUserRejection(e)) return setPhase(active ? 'responded' : 'idle')
     setError((e as { shortMessage?: string; message?: string }).shortMessage ?? (e as Error).message)
     setPhase('error')
   }
@@ -42,21 +43,34 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
   const payAndCall = async () => {
     if (!wallet.address) return setOpen(true)
     setError(null)
+    setNotice(null)
+    setLowWallets(false)
     setRefusal(null)
     setActive(null)
+    // Where the flow is and which offer it made are kept in locals, not state: the catch below must not read stale state.
+    let step: 'offer' | 'accept' | 'after' = 'offer'
+    let offeredId: string | null = null
     try {
       setPhase('offering')
       const o = await api.offer(wallet.address)
+      const low = walletsLowMessage(o.body)
+      if (low) {
+        setLowWallets(true)
+        throw new Error(low)
+      }
       if (o.status !== 200 || !o.body.jobId) {
         const wait = o.body.retryInSeconds ? ` Try again in ${o.body.retryInSeconds} s.` : ''
         throw new Error((o.body.error === 'rate_limited' ? 'The demo offer limit is reached.' : (o.body.error ?? 'offer failed')) + wait)
       }
       const id = o.body.jobId
+      offeredId = id
       setActive({ id, kind: 'own' })
       ctx.track(id, 'own')
       const fromBlock = (await publicClient.getBlockNumber()) - 5n
       setPhase('accepting')
+      step = 'accept'
       const acceptTx = await wallet.accept(BigInt(id))
+      step = 'after'
       setActive({ id, kind: 'own', fallback: { txHashes: { 'your accept': acceptTx } } })
       setPhase('calling')
       const jr = await api.job(id)
@@ -71,6 +85,14 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
       }
       setPhase('missed')
     } catch (e) {
+      if (step === 'accept' && isUserRejection(e)) {
+        // The only wallet prompt in this flow is the accept: cancelling it leaves an open offer and no job to show.
+        setActive(null)
+        if (offeredId) ctx.forget(offeredId)
+        setPhase('idle')
+        setNotice('Accept cancelled. The open offer is withdrawn by the next sweep after 10 minutes.')
+        return
+      }
       fail(e)
     }
   }
@@ -83,6 +105,7 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
       await ctx.refresh()
       setPhase('done')
     } catch (e) {
+      if (isUserRejection(e)) return setPhase('responded') // the wallet was dismissed: the answer is still there to acknowledge
       fail(e)
     }
   }
@@ -94,18 +117,20 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
       await ctx.refresh()
       setPhase('done')
     } catch (e) {
+      if (isUserRejection(e)) return setPhase('missed')
       fail(e)
     }
   }
 
   const watchIt = async (mode: 'normal' | 'buyer-silent') => {
     setWatch({ phase: 'running', mode })
+    setNotice(null)
     setPhase('idle')
     try {
       const r = await api.demoRun(mode)
-      if (r.status === 409) return setWatch({ phase: 'busy', mode, body: r.body })
+      if (r.status === 409 || walletsLowMessage(r.body)) return setWatch({ phase: 'busy', mode, body: r.body })
       const b = r.body
-      if (r.status !== 200 || !b.jobId) throw new Error(b.error ?? b.message ?? `demo run failed (HTTP ${r.status})`)
+      if (r.status !== 200 || !b.jobId) throw new Error(walletsLowMessage(b) ?? b.error ?? b.message ?? `demo run failed (HTTP ${r.status})`)
       if (mode === 'normal') {
         const ack = b.txHashes?.acknowledge
         if (!ack) throw new Error('the run returned no acknowledge transaction')
@@ -148,7 +173,8 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
           {running && watch.mode === 'buyer-silent' ? <span className="dots-wait">Running</span> : 'Watch: buyer stays silent after the answer'}
         </button>
       </div>
-      {phase === 'error' && <p role="alert" className="mt-3" style={{ color: 'var(--after)' }}>{error} <button className="link" onClick={() => void payAndCall()}>Try again</button></p>}
+      {phase === 'error' && <p role="alert" className="mt-3" style={{ color: 'var(--after)' }}>{error}{lowWallets ? null : <> <button className="link" onClick={() => void payAndCall()}>Try again</button></>}</p>}
+      {notice && <p role="status" className="mt-3 text-[15px]">{notice}</p>}
       {watch.phase === 'busy' && watch.body && <BusyNotice body={watch.body} now={ctx.now} settle={ctx.settle} />}
       {watch.phase === 'error' && <p role="alert" className="mt-3" style={{ color: 'var(--after)' }}>{watch.message}</p>}
 

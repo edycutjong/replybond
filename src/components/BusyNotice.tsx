@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { walletsLowMessage } from '@/lib/api'
 import type { DemoRunBody } from '@/lib/api'
 import type { SettleNow } from '@/hooks/useSettleNow'
 import { blockTime } from './ui'
@@ -14,18 +15,19 @@ export function BusyNotice({ body, now, settle }: { body: DemoRunBody; now: numb
       void settle.run()
     }
   }, [poolEmpty, settle])
+  const low = walletsLowMessage(body)
   const left = body.retryAt ? Math.max(0, Math.ceil(body.retryAt - now)) : null
   return (
     <div className="field mt-3" role="status">
-      <p className="font-semibold">{body.error === 'rate_limited' ? 'The hourly or daily demo limit is reached.' : 'Another demo job is in flight.'}</p>
-      {body.retryAt ? (
+      <p className="font-semibold">{low ?? (body.error === 'rate_limited' ? 'The hourly or daily demo limit is reached.' : 'Another demo job is in flight.')}</p>
+      {body.retryAt && !low ? (
         <p className="text-[15px]">
           Try again at <span className="data">{blockTime(body.retryAt)}</span>
           {left !== null ? <> (in <span className="data">{left} s</span>)</> : null}.
         </p>
       ) : null}
       <p className="text-[15px]">
-        {poolEmpty ? 'The pool of expired jobs is empty; the latest settled timeout is shown at the top.' : `${body.pool?.size ?? 0} job(s) are in the pool.`} Meanwhile:
+        {low ? null : poolEmpty ? 'The pool of expired jobs is empty; the latest settled timeout is shown at the top.' : `${body.pool?.size ?? 0} job(s) are in the pool.`} Meanwhile:
       </p>
       <button
         className="btn mt-2"

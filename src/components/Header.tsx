@@ -1,6 +1,6 @@
 import { ConnectKitButton } from 'connectkit'
 import { ExternalLink } from 'lucide-react'
-import { CONTRACT, IS_TESTNET, NETWORK_NAME, STUDIO_PROJECT_URL, addressUrl, shortHash } from '@/lib/appConfig'
+import { CONTRACT, NETWORK_NAME, STUDIO_PROJECT_URL, addressUrl, shortHash } from '@/lib/appConfig'
 
 export function Header() {
   return (
@@ -30,7 +30,7 @@ export function Header() {
           )}
         </span>
         <span className="label" style={{ border: '1px solid var(--rule)', padding: '2px 8px', background: 'var(--card)' }}>
-          {NETWORK_NAME}{IS_TESTNET ? ' · testnet' : ''}
+          {NETWORK_NAME}
         </span>
         <a className="link" href={STUDIO_PROJECT_URL} target="_blank" rel="noopener noreferrer">
           Arc Studio project <ExternalLink size={13} className="inline -mt-1" aria-hidden />

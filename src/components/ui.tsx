@@ -65,7 +65,7 @@ export function SettlementMark({ jobStatus, settlement, price, bond, animate = t
     return (
       <div className="pt-2 pb-1">
         <div key={settlement.txHash} className={`stamp mb-6 mt-2${animate ? '' : ' stamp--still'}`} role="img" aria-label={`Indemnity paid, plus ${fmtUsdc(amount)} USDC`}>
-          Indemnity paid · +{fmtUsdc(amount)} USDC
+          Indemnity paid · <span className="stamp-amount">+{fmtUsdc(amount)} USDC</span>
         </div>
         {splits && (
           <p className="text-[15px]">
@@ -104,6 +104,8 @@ export interface CounterfoilProps {
   now: number
   output?: string | null
   settlement?: Settlement | null
+  /** Pinned older proof (unix seconds; null when the date is unknown): shown as "On record · <UTC date>" so it never reads as fresh. */
+  onRecordAt?: number | null
   /** false: the stamp or postmark is drawn in place (first paint); true: it lands with the pop. */
   animate?: boolean
   children?: ReactNode
@@ -135,8 +137,15 @@ export function Counterfoil(p: CounterfoilProps) {
         ) : null}
       </div>
       <div className="p-4 grid gap-3 min-w-0">
-        <div className="label" style={{ borderBottom: '1px solid var(--rule)', paddingBottom: 4 }}>
-          Registered job · provider bonded {p.status !== null && <span style={{ color: 'var(--ink)' }}>· {STATUS_NAMES[p.status]}</span>}
+        <div style={{ borderBottom: '1px solid var(--rule)', paddingBottom: 4 }}>
+          <div className="label">
+            Registered job · provider bonded {p.status !== null && <span style={{ color: 'var(--ink)' }}>· {STATUS_NAMES[p.status]}</span>}
+          </div>
+          {p.onRecordAt !== undefined && (
+            <div className="label" style={{ color: 'var(--ink)' }}>
+              On record{p.onRecordAt ? ` · ${new Date(p.onRecordAt * 1000).toISOString().slice(0, 10)} UTC` : ''}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="field min-w-[96px]">

@@ -24,7 +24,7 @@ function Action({ job, ctx }: { job: JobView; ctx: FlowCtx }) {
   const settling = ctx.settlements.settling[id]
   const err = ctx.settlements.errors[id]
   const note = ctx.settlements.notes[id]
-  const ours = ctx.sweep?.providerAddress?.toLowerCase() === job.provider.toLowerCase()
+  const ours = ctx.provider?.toLowerCase() === job.provider.toLowerCase()
   const small = { minHeight: 44, fontSize: 15, padding: '0 12px' }
   const retry = (text: string) => (
     <button className="btn" style={small} onClick={() => void ctx.settlements.settleJob(id)} disabled={settling}>
@@ -118,7 +118,7 @@ export function JobsTable({ ctx, rows, total, pool, loading, error, focus, onFoc
           </tbody>
         </table>
       </div>
-      <p className="label mt-2">Shown: {shown.length} of {total} jobs by this provider{ctx.sweep?.providerAddress ? '' : ' · waiting for the provider address'}</p>
+      <p className="label mt-2">Shown: {shown.length} of {total} jobs by this provider{ctx.provider ? '' : ' · waiting for the provider address'}</p>
     </section>
   )
 }

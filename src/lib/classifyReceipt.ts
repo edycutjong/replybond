@@ -43,9 +43,10 @@ const topicAddress = (t: string) => `0x${t.slice(-40)}`.toLowerCase()
  *             for the amount the contract's settle event reports, and no PayoutOwed.
  *  OWED       the successful receipt has PayoutOwed from the contract.
  *  UNREADABLE anything else: no receipt, failed, no settle event, or no matching Transfer.
- * Arc emits the Transfer log for contract payouts (checked on testnet receipts), so there is no event-only fallback.
+ * Arc emits the Transfer log for contract payouts (checked on Arc testnet and on the Arc mainnet acknowledge, timeout and claim receipts), so there is no event-only fallback.
+ * With `expectedJobId` only the PayoutOwed / settle events of that job count, so one receipt holding several settlements is judged per job.
  */
-export function classifyReceipt(input: ReceiptLike | null | undefined, contract: Address): Classification {
+export function classifyReceipt(input: ReceiptLike | null | undefined, contract: Address, expectedJobId?: bigint): Classification {
   if (!input) return none('receipt unavailable')
   if (input.status !== 'success') return none('transaction did not succeed')
   // Hex case varies between RPC providers (checksummed addresses, upper-case topics); compare and decode in lower case.
@@ -62,13 +63,14 @@ export function classifyReceipt(input: ReceiptLike | null | undefined, contract:
     return none('contract logs unreadable')
   }
 
-  const owed = events.find((e) => e.eventName === 'PayoutOwed')
+  const relevant = expectedJobId === undefined ? events : events.filter((e) => (e.args as { id?: bigint }).id === expectedJobId)
+  const owed = relevant.find((e) => e.eventName === 'PayoutOwed')
   if (owed) {
     return { kind: 'OWED', event: null, jobId: owed.args.id, payee: owed.args.payee, amount: owed.args.amount, reason: 'PayoutOwed in receipt' }
   }
 
   let settle: { event: SettleEvent; jobId: bigint; payee: Address; amount: bigint } | null = null
-  for (const e of events) {
+  for (const e of relevant) {
     if (e.eventName === 'JobPaid' || e.eventName === 'JobClaimed') settle = { event: e.eventName, jobId: e.args.id, payee: e.args.provider, amount: e.args.amount }
     else if (e.eventName === 'JobTimedOut') settle = { event: e.eventName, jobId: e.args.id, payee: e.args.buyer, amount: e.args.amount }
     else if (e.eventName === 'OfferWithdrawn') settle = { event: e.eventName, jobId: e.args.id, payee: e.args.provider, amount: e.args.bond }

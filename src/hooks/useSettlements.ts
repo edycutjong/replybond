@@ -33,13 +33,13 @@ export function useSettlements(refreshJobs: () => Promise<void>, onSettled?: (id
       setReading((m) => ({ ...m, [id]: true }))
       try {
         let s: Settlement | null = null
-        if (summary && summary.status) s = await settlementFromSummary(summary)
+        if (summary && summary.status) s = await settlementFromSummary(summary, BigInt(id))
         for (let i = 0; !s && i < 7; i++) {
-          const r = await resolveSettlement(txHash)
+          const r = await resolveSettlement(txHash, BigInt(id))
           if (!r.unavailable) s = r
           else await sleep(1000 * (i + 1))
         }
-        s ??= await resolveSettlement(txHash) // still unreadable after the retries: stored as is, retried later
+        s ??= await resolveSettlement(txHash, BigInt(id)) // still unreadable after the retries: stored as is, retried later
         remember(id, s)
         return s
       } finally {

@@ -5,7 +5,7 @@ import { appChain, CONTRACT, START_BLOCK } from './appConfig'
 import { classifyReceipt } from './classifyReceipt'
 import type { Classification } from './classifyReceipt'
 import type { ReceiptSummary } from './api'
-import { pageLogs } from './pageLogs'
+import { orderLogs, pageLogs } from './pageLogs'
 
 export const publicClient = createPublicClient({ chain: appChain, transport: http(appChain.rpcUrls.default.http[0], { batch: { wait: 20 }, retryCount: 5, retryDelay: 300 }), pollingInterval: 500 })
 
@@ -136,7 +136,7 @@ export async function loadJobs(): Promise<{ jobs: JobView[]; now: number; head: 
     const fresh = parseEventLogs({ abi: replyBondAbi, logs: raw })
     cache = { ...cache, scanned: head, logs: [...cache.logs, ...fresh] }
   }
-  return { jobs: await reduce(cache.logs), now, head }
+  return { jobs: await reduce(orderLogs(cache.logs)), now, head }
 }
 
 const receipts = new Map<string, Promise<TransactionReceipt | null>>()
@@ -186,13 +186,13 @@ export interface Settlement {
 }
 
 /** Fetches the settle receipt from the chain and classifies it with the shared function. */
-export async function resolveSettlement(txHash: Hex): Promise<Settlement> {
+export async function resolveSettlement(txHash: Hex, expectedJobId?: bigint): Promise<Settlement> {
   const receipt = await getReceipt(txHash)
-  const classification = CONTRACT ? classifyReceipt(receipt, CONTRACT) : classifyReceipt(null, '0x0000000000000000000000000000000000000000')
-  // Arc receipts carry the block timestamp on each log; only fall back to a block read for a postmark time.
+  const classification = CONTRACT ? classifyReceipt(receipt, CONTRACT, expectedJobId) : classifyReceipt(null, '0x0000000000000000000000000000000000000000')
+  // Arc receipts carry the block timestamp on each log; otherwise read the block. A failed read keeps the verified settlement with blockTime null.
   const inline = (receipt?.logs[0] as { blockTimestamp?: bigint | string | null } | undefined)?.blockTimestamp
   let blockTime: number | null = inline !== undefined && inline !== null ? Number(inline) : null
-  if (blockTime === null && receipt && classification.event === 'JobPaid') {
+  if (blockTime === null && receipt && classification.event !== null) {
     try {
       blockTime = Number((await slot(() => publicClient.getBlock({ blockNumber: receipt.blockNumber }))).timestamp)
     } catch {
@@ -206,8 +206,8 @@ export async function resolveSettlement(txHash: Hex): Promise<Settlement> {
  * Classifies the receipt that /api/settle (or /api/demo-run) returned, with the same shared function, so the stamp or
  * postmark does not depend on the browser's own RPC being reachable at that moment.
  */
-export async function settlementFromSummary(s: ReceiptSummary): Promise<Settlement> {
-  const classification = CONTRACT ? classifyReceipt({ status: s.status, logs: s.logs }, CONTRACT) : classifyReceipt(null, '0x0000000000000000000000000000000000000000')
+export async function settlementFromSummary(s: ReceiptSummary, expectedJobId?: bigint): Promise<Settlement> {
+  const classification = CONTRACT ? classifyReceipt({ status: s.status, logs: s.logs }, CONTRACT, expectedJobId) : classifyReceipt(null, '0x0000000000000000000000000000000000000000')
   let blockTime: number | null = null
   try {
     blockTime = Number((await slot(() => publicClient.getBlock({ blockNumber: BigInt(s.blockNumber) }))).timestamp)
@@ -217,11 +217,11 @@ export async function settlementFromSummary(s: ReceiptSummary): Promise<Settleme
   return { jobId: classification.jobId, txHash: s.txHash, classification, blockTime }
 }
 
-export async function readJobTerms(id: bigint): Promise<{ price: bigint; bond: bigint } | null> {
+export async function readJobTerms(id: bigint): Promise<{ price: bigint; bond: bigint; responseWindow: number } | null> {
   if (!CONTRACT) return null
   try {
     const j = await publicClient.readContract({ address: CONTRACT, abi: replyBondAbi, functionName: 'getJob', args: [id] })
-    return { price: j.price, bond: j.bond }
+    return { price: j.price, bond: j.bond, responseWindow: Number(j.responseWindow) }
   } catch {
     return null
   }

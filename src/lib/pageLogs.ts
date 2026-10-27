@@ -44,3 +44,16 @@ export async function pageLogs<T>(
   await Promise.all(Array.from({ length: Math.min(concurrency, pages.length) }, worker))
   return results.flat()
 }
+
+/** Parsed logs in chain order, `(blockNumber, logIndex)`, with duplicates (same `transactionHash:logIndex`) dropped. */
+export function orderLogs<T extends { blockNumber: bigint; logIndex: number; transactionHash: string }>(parsed: readonly T[]): T[] {
+  const seen = new Set<string>()
+  const unique: T[] = []
+  for (const l of parsed) {
+    const key = `${l.transactionHash}:${l.logIndex}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    unique.push(l)
+  }
+  return unique.sort((a, b) => (a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1))
+}

@@ -112,3 +112,43 @@ test('real receipts are not PAID when the Transfer goes to the wrong party or fo
   const shortAmount: ReceiptLike = { status: 'success', logs: [acknowledge41.logs[0]!, { ...acknowledge41.logs[1]!, data: word(AMOUNT - 1n) }] }
   assert.equal(classifyReceipt(shortAmount, CONTRACT).kind, 'UNREADABLE')
 })
+
+// One receipt, several jobs: with an expected id only that job's events count.
+const claimedEvent = (id: bigint) => ({
+  address: CONTRACT,
+  topics: topicsOf({ abi: replyBondAbi, eventName: 'JobClaimed', args: { id, provider: PROVIDER, caller: BUYER } }),
+  data: word(AMOUNT),
+})
+const timedOutEvent = (id: bigint) => ({
+  address: CONTRACT,
+  topics: topicsOf({ abi: replyBondAbi, eventName: 'JobTimedOut', args: { id, buyer: BUYER, caller: BUYER } }),
+  data: word(AMOUNT),
+})
+const owedEvent = (id: bigint, payee: Address) => ({
+  address: CONTRACT,
+  topics: topicsOf({ abi: replyBondAbi, eventName: 'PayoutOwed', args: { id, payee } }),
+  data: word(AMOUNT),
+})
+
+test('two settlements in one receipt: each job is classified by its own events', () => {
+  const both = ok(timedOutEvent(5n), transfer(BUYER), claimedEvent(6n), transfer(PROVIDER))
+  const five = classifyReceipt(both, CONTRACT, 5n)
+  assert.deepEqual([five.kind, five.event, five.jobId, five.payee?.toLowerCase()], ['PAID', 'JobTimedOut', 5n, BUYER])
+  const six = classifyReceipt(both, CONTRACT, 6n)
+  assert.deepEqual([six.kind, six.event, six.jobId, six.payee?.toLowerCase()], ['PAID', 'JobClaimed', 6n, PROVIDER])
+  // without an id the last settle event wins, as before
+  assert.equal(classifyReceipt(both, CONTRACT).jobId, 6n)
+  // a job whose own payout has no Transfer is not rescued by the other job's Transfer
+  const half = ok(timedOutEvent(5n), claimedEvent(6n), transfer(PROVIDER))
+  assert.equal(classifyReceipt(half, CONTRACT, 5n).kind, 'UNREADABLE')
+  assert.equal(classifyReceipt(half, CONTRACT, 6n).kind, 'PAID')
+  assert.equal(classifyReceipt(both, CONTRACT, 7n).kind, 'UNREADABLE', 'an id the receipt does not settle')
+})
+
+test('a PayoutOwed for another job next to a paid one does not make the paid one OWED', () => {
+  const mixed = ok(owedEvent(9n, PROVIDER), timedOutEvent(5n), transfer(BUYER))
+  assert.equal(classifyReceipt(mixed, CONTRACT, 5n).kind, 'PAID')
+  const owed = classifyReceipt(mixed, CONTRACT, 9n)
+  assert.deepEqual([owed.kind, owed.jobId], ['OWED', 9n])
+  assert.equal(classifyReceipt(mixed, CONTRACT).kind, 'OWED', 'unbound: any PayoutOwed still means OWED')
+})

@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  --ink-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='11'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='1 1 0.95 0.92'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   --bg: #e4ebf4; /* form stock */
   --card: #f8fafc; /* counterfoil card face */
   --ink: #1a2238; /* franking ink */
@@ -150,13 +151,21 @@ a.link {
   padding: 8px 16px;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 30px;
+  font-size: clamp(20px, 6.4vw, 30px); /* 30px on wide screens, scaled down on phones so the amount stays on one line */
   line-height: 1.1;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   transform: rotate(-6deg);
   background: rgba(248, 250, 252, 0.7);
+  /* Ink texture: a static feTurbulence alpha mask, never below 92% opaque so the red keeps WCAG AA contrast (4.6:1) on the card. */
+  -webkit-mask-image: var(--ink-mask);
+  mask-image: var(--ink-mask);
+  -webkit-mask-size: 160px 160px;
+  mask-size: 160px 160px;
   animation: stamp-land 200ms ease-out both;
+}
+.stamp .stamp-amount {
+  white-space: nowrap;
 }
 .dial {
   position: relative;
@@ -250,9 +259,6 @@ table.jobs td {
 @media (max-width: 640px) {
   .counterfoil {
     grid-template-columns: 84px 1fr;
-  }
-  .stamp {
-    font-size: 24px;
   }
   table.jobs thead {
     display: none;

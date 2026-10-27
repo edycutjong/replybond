@@ -30,7 +30,7 @@ export function useWalletActions() {
 
   const accept = useCallback((jobId: bigint) => send('acceptOffer', jobId, PRICE), [send])
   const settleTx = useCallback(
-    async (fn: 'acknowledge' | 'timeout', jobId: bigint): Promise<Settlement> => resolveSettlement(await send(fn, jobId)),
+    async (fn: 'acknowledge' | 'timeout', jobId: bigint): Promise<Settlement> => resolveSettlement(await send(fn, jobId), jobId),
     [send],
   )
   return { address, accept, acknowledge: (id: bigint) => settleTx('acknowledge', id), timeout: (id: bigint) => settleTx('timeout', id) }

@@ -12,6 +12,8 @@ export interface HeroCard {
   price: bigint | null
   bond: bigint | null
   responseWindow?: number
+  /** Set for a pinned older proof: its block time in unix seconds, or null when unknown. */
+  onRecordAt?: number | null
 }
 
 /**
@@ -39,6 +41,7 @@ export function Hero({ settle, initial, loading, demoBuyer, now }: { settle: Set
               bond={shown.bond ?? 0n}
               status={event ? STATUS_FOR_EVENT[event] : null}
               responseWindow={shown.responseWindow}
+              onRecordAt={shown.onRecordAt}
               now={now}
               settlement={shown.settlement}
               animate={shown.animate}
@@ -76,7 +79,7 @@ export function Hero({ settle, initial, loading, demoBuyer, now }: { settle: Set
           </p>
           {state.phase === 'notready' && (
             <p className="mt-2 font-semibold" role="status">
-              {left === null ? 'No pooled job yet. A refill is on its way.' : left > 0 ? `No pooled job is past its deadline yet. Next one ready in ${left} s.` : 'The next one is ready. Press again.'}
+              {state.message ? state.message : left === null ? 'No pooled job yet. A refill is on its way.' : left > 0 ? `No pooled job is past its deadline yet. Next one ready in ${left} s.` : 'The next one is ready. Press again.'}
               <span className="block font-normal text-[15px]">The card shows the latest real settled receipt.</span>
             </p>
           )}

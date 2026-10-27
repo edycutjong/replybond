@@ -64,6 +64,17 @@ export interface SettleBody {
   readyInSeconds?: number
   nextReadyInSeconds?: number | null
   latestSettledTimeout?: { jobId: string; receipt: ReceiptSummary } | null
+  refillSuggested?: boolean
+  pool?: PoolStatus
+}
+
+export interface RefillBody {
+  requested?: number
+  attempted?: number
+  created?: { jobId: string; postOffer: Hex; acceptOffer: Hex; deadline: number }[]
+  rotated?: { jobId: string; txHash: Hex }[]
+  error?: string
+  message?: string
   pool?: PoolStatus
 }
 
@@ -72,6 +83,7 @@ export type DemoMode = 'normal' | 'silent' | 'buyer-silent'
 export interface DemoRunBody {
   error?: string
   message?: string
+  balances?: { provider: string; buyer: string }
   mode?: DemoMode
   respondedAt?: number | null
   graceWindow?: number
@@ -91,6 +103,8 @@ export interface DemoRunBody {
 
 export interface OfferBody {
   error?: string
+  message?: string
+  balances?: { provider: string; buyer: string }
   jobId?: string
   txHash?: Hex
   retryAt?: number | null
@@ -111,8 +125,12 @@ export interface JobBody {
 export const api = {
   sweep: () => call<SweepBody>('/api/sweep', 'GET'),
   settle: (jobId?: string) => call<SettleBody>('/api/settle', 'POST', jobId === undefined ? {} : { jobId }),
-  refill: () => call<Record<string, unknown>>('/api/demo-refill', 'GET'),
+  refill: () => call<RefillBody>('/api/demo-refill', 'GET'),
   demoRun: (mode: DemoMode) => call<DemoRunBody>('/api/demo-run', 'POST', { mode }),
   offer: (buyer: Address) => call<OfferBody>('/api/offer', 'POST', { buyer }),
   job: (jobId: string) => call<JobBody>('/api/job', 'POST', { jobId }),
 }
+
+const WALLETS_LOW = 'The demo wallets are low on USDC. The proof transactions on this page stay verifiable on the explorer.'
+/** The sentence to show for a wallets_low reply (never the raw code), else null. */
+export const walletsLowMessage = (b: { error?: string; message?: string }): string | null => (b.error === 'wallets_low' ? (b.message ?? WALLETS_LOW) : null)

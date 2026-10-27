@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Status } from '@/lib/abi'
 import { api } from '@/lib/api'
+import { walletsLowMessage } from '@/lib/api'
 import type { DemoRunBody } from '@/lib/api'
 import { NETWORK_NAME, fmtUsdc } from '@/lib/appConfig'
 import { BOND, GRACE_WINDOW_S, PRICE, RESPONSE_WINDOW_S } from '@/lib/terms'
@@ -25,12 +26,12 @@ export function MissPanel({ ctx }: { ctx: FlowCtx }) {
     setError(null)
     try {
       const r = await api.demoRun('silent')
-      if (r.status === 409) {
+      if (r.status === 409 || walletsLowMessage(r.body)) {
         setBusy(r.body)
         setPhase('busy')
         return
       }
-      if (r.status !== 200 || !r.body.jobId || !r.body.deadline) throw new Error(r.body.error ?? `demo run failed (HTTP ${r.body.message ?? r.status})`)
+      if (r.status !== 200 || !r.body.jobId || !r.body.deadline) throw new Error(r.body.error ?? r.body.message ?? `demo run failed (HTTP ${r.status})`)
       ctx.track(r.body.jobId, 'silent', { deadline: r.body.deadline })
       setStarted({ id: r.body.jobId, fallback: { deadline: r.body.deadline, status: Status.Accepted, txHashes: r.body.txHashes } })
       setPhase('idle')

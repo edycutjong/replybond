@@ -4,7 +4,7 @@ import { replyBondAbi, Status } from '../../src/lib/abi.js'
 import { LIMITS, MIN_WALLET_BALANCE, POOL_TARGET, ctx, sameAddr } from './config.js'
 import type { Deps } from './deps.js'
 import { isPoolStock } from '../../src/lib/pool.js'
-import { pageLogs } from '../../src/lib/pageLogs.js'
+import { orderLogs, pageLogs } from '../../src/lib/pageLogs.js'
 import { recordByHash } from './fixtures.js'
 import type { Mode, OfferRecord } from './fixtures.js'
 
@@ -86,10 +86,7 @@ export async function loadSnapshot(): Promise<Snapshot> {
     cache = { ...cache, scanned: head, logs: [...cache.logs, ...fresh] }
     writeCache(cache)
   }
-  const logs = [...cache.logs]
-  logs.sort((a, b) =>
-    a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : a.blockNumber < b.blockNumber ? -1 : 1,
-  )
+  const logs = orderLogs(cache.logs)
 
   const tsCache = new Map<bigint, number>()
   const tsOf = async (l: (typeof logs)[number]): Promise<number> => {
