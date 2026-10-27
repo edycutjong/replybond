@@ -94,15 +94,81 @@ body {
   background: #263052;
 }
 .btn:focus-visible,
-a:focus-visible {
+a:focus-visible,
+button:focus-visible {
   outline: 3px solid var(--before);
   outline-offset: 2px;
 }
+a.btn {
+  text-decoration: none;
+}
+a.btn-primary:hover {
+  background: #263052;
+}
 
-a.link {
+a.link,
+button.link {
   color: var(--before);
   text-decoration: underline;
   text-underline-offset: 3px;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+}
+a.link:hover,
+button.link:hover {
+  color: #1f3d80;
+  text-decoration-thickness: 2px;
+}
+a.link:active,
+button.link:active {
+  opacity: 0.75;
+}
+
+/* Landing: the plain-text table of job states. */
+table.states {
+  border-collapse: collapse;
+  background: var(--card);
+  border: 1px solid var(--rule);
+}
+table.states th {
+  padding: 8px 12px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--rule);
+}
+table.states td {
+  padding: 10px 12px;
+  border-top: 1px solid var(--rule);
+  vertical-align: top;
+}
+@media (max-width: 640px) {
+  table.states thead {
+    display: none;
+  }
+  table.states tr {
+    display: block;
+    padding: 6px 0;
+    border-top: 1px solid var(--rule);
+  }
+  table.states td {
+    display: block;
+    border: 0;
+    padding: 2px 12px;
+  }
+  table.states td::before {
+    content: attr(data-label) ': ';
+    font-family: var(--font-display);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
 }
 
 /* Counterfoil: stub + body split by a perforation. */
@@ -301,6 +367,12 @@ table.jobs td {
   .stamp,
   .postmark {
     animation: none;
+  }
+  .btn {
+    transition: none;
+  }
+  html {
+    scroll-behavior: auto;
   }
   .dots-wait::after {
     animation: none;

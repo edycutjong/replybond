@@ -3,18 +3,17 @@ import { Status } from '@/lib/abi'
 import { CallApiPanel } from './components/CallApiPanel'
 import { Header } from './components/Header'
 import { Hero } from './components/Hero'
-import type { HeroCard } from './components/Hero'
 import { JobsTable } from './components/JobsTable'
 import { MissPanel } from './components/MissPanel'
 import { MoneyTrail } from './components/MoneyTrail'
 import type { FlowCtx } from './components/types'
 import { useJobs, useTick } from './hooks/useJobs'
+import { useHeroCard } from './hooks/useHeroCard'
 import { useSettleNow } from './hooks/useSettleNow'
 import { useSettlements } from './hooks/useSettlements'
 import { api } from './lib/api'
 import type { SweepBody } from './lib/api'
-import { CONTRACT, DEMO_BUYER_ADDRESS, PROOF_TIMEOUT_TX, PROVIDER_ADDRESS } from './lib/appConfig'
-import { readJobTerms, resolveSettlement } from './lib/chainReads'
+import { CONTRACT, DEMO_BUYER_ADDRESS, PROVIDER_ADDRESS } from './lib/appConfig'
 import { addMine } from './lib/mine'
 import { addTracked, readTracked, removeTracked } from './lib/tracked'
 import type { TrackedExtra, TrackedKind } from './lib/tracked'
@@ -136,34 +135,7 @@ export default function App() {
     [ours, now, refresh, settlements, settle, sweep, provider, demoBuyer, tracked, seen, track, forget],
   )
 
-  // Hero: the latest real settled timeout of this provider, judged by classifyReceipt once its receipt is read.
-  const latestTimeout = ours.find((j) => j.status === Status.TimedOut && j.txs.settled)
-  const latestSettlement = latestTimeout ? settlements.byJob[String(latestTimeout.id)] : undefined
-  const fromWindow: HeroCard | null =
-    latestTimeout && latestSettlement
-      ? { jobId: String(latestTimeout.id), settlement: latestSettlement, price: latestTimeout.price, bond: latestTimeout.bond, responseWindow: latestTimeout.responseWindow }
-      : null
-
-  // When the scanned window holds no timeout, show a pinned older proof (if one is configured) labelled "On record".
-  // undefined = not read yet, null = nothing to show.
-  const [pinned, setPinned] = useState<HeroCard | null | undefined>(undefined)
-  const needsPinned = PROOF_TIMEOUT_TX !== null && !loading && !scanning && !waitingOnSweep && latestTimeout === undefined
-  const pinnedStarted = useRef(false)
-  useEffect(() => {
-    if (!needsPinned || !PROOF_TIMEOUT_TX || pinnedStarted.current) return
-    pinnedStarted.current = true
-    void (async () => {
-      try {
-        const s = await resolveSettlement(PROOF_TIMEOUT_TX)
-        const terms = s.jobId !== null ? await readJobTerms(s.jobId) : null
-        setPinned(s.jobId !== null && !s.unavailable ? { jobId: String(s.jobId), settlement: s, price: terms?.price ?? null, bond: terms?.bond ?? null, responseWindow: terms?.responseWindow, onRecordAt: s.blockTime } : null)
-      } catch {
-        setPinned(null)
-      }
-    })()
-  }, [needsPinned])
-  const initial = fromWindow ?? (latestTimeout === undefined ? (pinned ?? null) : null)
-  const heroLoading = waitingOnSweep || loading || (scanning && latestTimeout === undefined) || (latestTimeout !== undefined && !latestSettlement) || (needsPinned && pinned === undefined)
+  const { initial, heroLoading } = useHeroCard({ ours, settlements, loading, scanning, waitingOnSweep })
 
   const focusJob = rows.find((j) => j.id === focus) ?? rows[0]
   const settlePool = () => {

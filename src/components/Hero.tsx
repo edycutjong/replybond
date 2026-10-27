@@ -1,4 +1,5 @@
 import { ExternalLink } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { SettleNow } from '@/hooks/useSettleNow'
 import { NETWORK_NAME, addressUrl, shortHash } from '@/lib/appConfig'
 import type { Settlement } from '@/lib/chainReads'
@@ -20,7 +21,7 @@ export interface HeroCard {
  * First screen: the counterfoil of the latest real settled timeout of our provider, with the settle button beside it.
  * Clicking replaces the card with the visitor's own new receipt; the stamp lands only if classifyReceipt says PAID.
  */
-export function Hero({ settle, initial, loading, demoBuyer, now }: { settle: SettleNow; initial: HeroCard | null; loading: boolean; demoBuyer?: string; now: number }) {
+export function Hero({ settle, initial, loading, demoBuyer, now, stacked = false, extraAction }: { settle: SettleNow; initial: HeroCard | null; loading: boolean; demoBuyer?: string; now: number; stacked?: boolean; extraAction?: ReactNode }) {
   const { state, run } = settle
   const running = state.phase === 'running'
   const own = state.phase === 'settled' ? state.card : null
@@ -29,8 +30,8 @@ export function Hero({ settle, initial, loading, demoBuyer, now }: { settle: Set
   const event = shown?.settlement.classification.event
   return (
     <section aria-labelledby="hero-title" className="pt-3 sm:pt-5 pb-6">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-        <div className="order-2 lg:order-1 min-w-0">
+      <div className={stacked ? 'grid gap-5' : 'grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start'}>
+        <div className={stacked ? 'min-w-0' : 'order-2 lg:order-1 min-w-0'}>
           <h2 id="hero-title" className="label mb-2">
             {own ? 'Your settlement, read from the chain' : 'Latest real settled timeout'} · {NETWORK_NAME}
           </h2>
@@ -58,12 +59,13 @@ export function Hero({ settle, initial, loading, demoBuyer, now }: { settle: Set
             </div>
           )}
         </div>
-        <div className="order-1 lg:order-2">
-          <h3 className="panel-title hidden sm:block" style={{ fontSize: 24 }}>When the API stays silent, the buyer is compensated.</h3>
-          <div className="sm:mt-3 flex flex-wrap items-center gap-3">
+        <div className={stacked ? '' : 'order-1 lg:order-2'}>
+          {!stacked && <h3 className="panel-title hidden sm:block" style={{ fontSize: 24 }}>When the API stays silent, the buyer is compensated.</h3>}
+          <div className={stacked ? 'flex flex-wrap items-center gap-3' : 'sm:mt-3 flex flex-wrap items-center gap-3'}>
             <button className="btn btn-primary" onClick={() => void run()} disabled={running}>
               {running ? <span className="dots-wait">Settling</span> : 'Settle a missed deadline now'}
             </button>
+            {extraAction}
           </div>
           <p className="mt-1 sm:mt-2 text-[15px]">Refund + penalty lands in seconds.</p>
           <p className="mt-1 text-[15px]" style={{ color: 'var(--muted)' }}>
