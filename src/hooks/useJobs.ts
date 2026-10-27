@@ -6,6 +6,7 @@ export function useJobs() {
   const [jobs, setJobs] = useState<JobView[]>([])
   const [head, setHead] = useState<bigint | null>(null)
   const [loading, setLoading] = useState(true)
+  const [scanning, setScanning] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const offset = useRef(0) // chain seconds minus local seconds
   const busy = useRef(false)
@@ -13,8 +14,10 @@ export function useJobs() {
   const refresh = useCallback(async () => {
     if (busy.current) return
     busy.current = true
+    setScanning(true)
     try {
-      const r = await loadJobs()
+      // Rows appear as pages arrive: the first scan can take a while on a rate-limited public RPC.
+      const r = await loadJobs((partial) => setJobs(partial))
       offset.current = r.now - Date.now() / 1000
       setJobs(r.jobs)
       setHead(r.head)
@@ -24,6 +27,7 @@ export function useJobs() {
     } finally {
       busy.current = false
       setLoading(false)
+      setScanning(false)
     }
   }, [])
 
@@ -39,7 +43,7 @@ export function useJobs() {
   }, [refresh])
 
   const chainNow = useCallback(() => Date.now() / 1000 + offset.current, [])
-  return { jobs, head, loading, error, refresh, chainNow }
+  return { jobs, head, loading, scanning, error, refresh, chainNow }
 }
 
 /** Re-renders every 500 ms so countdowns stay live. */

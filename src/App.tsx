@@ -25,7 +25,7 @@ import { GRACE_WINDOW_S } from './lib/terms'
 let sweepOnLoad: ReturnType<typeof api.sweep> | null = null
 
 export default function App() {
-  const { jobs, loading, error, refresh, chainNow } = useJobs()
+  const { jobs, loading, scanning, error, refresh, chainNow } = useJobs()
   useTick()
   const now = chainNow()
   const [sweep, setSweep] = useState<SweepBody | null>(null)
@@ -147,7 +147,7 @@ export default function App() {
   // When the scanned window holds no timeout, show a pinned older proof (if one is configured) labelled "On record".
   // undefined = not read yet, null = nothing to show.
   const [pinned, setPinned] = useState<HeroCard | null | undefined>(undefined)
-  const needsPinned = PROOF_TIMEOUT_TX !== null && !loading && !waitingOnSweep && latestTimeout === undefined
+  const needsPinned = PROOF_TIMEOUT_TX !== null && !loading && !scanning && !waitingOnSweep && latestTimeout === undefined
   const pinnedStarted = useRef(false)
   useEffect(() => {
     if (!needsPinned || !PROOF_TIMEOUT_TX || pinnedStarted.current) return
@@ -163,7 +163,7 @@ export default function App() {
     })()
   }, [needsPinned])
   const initial = fromWindow ?? (latestTimeout === undefined ? (pinned ?? null) : null)
-  const heroLoading = waitingOnSweep || loading || (latestTimeout !== undefined && !latestSettlement) || (needsPinned && pinned === undefined)
+  const heroLoading = waitingOnSweep || loading || (scanning && latestTimeout === undefined) || (latestTimeout !== undefined && !latestSettlement) || (needsPinned && pinned === undefined)
 
   const focusJob = rows.find((j) => j.id === focus) ?? rows[0]
   const settlePool = () => {
@@ -195,7 +195,8 @@ export default function App() {
         rows={rows}
         total={ours.length}
         pool={{ ready, waiting: stock.length - ready, onSettle: settlePool, settling: settle.state.phase === 'running' }}
-        loading={loading || waitingOnSweep}
+        loading={loading || waitingOnSweep || (scanning && rows.length === 0)}
+        scanning={scanning}
         error={error}
         focus={focusJob?.id ?? null}
         onFocus={setFocus}

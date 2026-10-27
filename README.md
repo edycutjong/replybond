@@ -37,6 +37,8 @@ Hosted on Vercel (Vite framework preset, `api/` as Node.js functions):
 Server (Vercel project environment variables, runtime):
 - `PROVIDER_KEY`: private key of the service-provider wallet. Required.
 - `DEMO_BUYER_KEY`: private key of the demo buyer wallet. Required.
+- `VITE_PROVIDER_ADDRESS`, `VITE_DEMO_BUYER_ADDRESS` (optional): the provider and demo-buyer addresses, so the page can list the provider's jobs and collapse stock without waiting for the sweep.
+- `VITE_PROOF_TIMEOUT_TX` (optional): a settled timeout shown in the hero, labelled "On record", when the recent scan holds none. On Arc mainnet it defaults to a real mainnet timeout.
 - `RPC_URL`: RPC endpoint for the configured chain. Required in production; a missing value returns a clear 500.
 - `CRON_SECRET` (optional, recommended in production): when set, the daily pool-rotation job must send it as a bearer token; Vercel Cron does this automatically. Without it the daily job only tops the pool up.
 - `REPLYBOND_ADDRESS`: optional override of `VITE_REPLYBOND_ADDRESS` for the API.

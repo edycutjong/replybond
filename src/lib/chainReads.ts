@@ -1,11 +1,14 @@
 import { createPublicClient, http, parseEventLogs } from 'viem'
 import type { Address, Hex, TransactionReceipt } from 'viem'
 import { replyBondAbi, Status } from './abi'
-import { appChain, CONTRACT, START_BLOCK } from './appConfig'
+import { appChain, CHAIN_ID, CONTRACT, START_BLOCK } from './appConfig'
 import { classifyReceipt } from './classifyReceipt'
 import type { Classification } from './classifyReceipt'
 import type { ReceiptSummary } from './api'
-import { orderLogs, pageLogs } from './pageLogs'
+import { orderLogs } from './pageLogs'
+import { fromStored, pageCacheKey, storedPageCache, toStored } from './pageStore'
+import type { StoredLog } from './pageStore'
+import { scanPages } from './scanPages'
 
 export const publicClient = createPublicClient({ chain: appChain, transport: http(appChain.rpcUrls.default.http[0], { batch: { wait: 20 }, retryCount: 5, retryDelay: 300 }), pollingInterval: 500 })
 
@@ -124,17 +127,37 @@ async function reduce(logs: Parsed[]): Promise<JobView[]> {
   return [...byId.values()].sort((a, b) => (a.id < b.id ? 1 : -1)) // newest first
 }
 
-export async function loadJobs(): Promise<{ jobs: JobView[]; now: number; head: bigint }> {
+const pageCache = CONTRACT ? storedPageCache(pageCacheKey(CHAIN_ID, CONTRACT)) : undefined
+
+/**
+ * Reads the contract's events and folds them into jobs. The first load scans the ~25h window newest page first, two
+ * pages at a time; `onProgress` gets the jobs seen so far after every page, so rows appear while the scan runs.
+ * Later loads fetch only the blocks after the last scan.
+ */
+export async function loadJobs(onProgress?: (jobs: JobView[]) => void): Promise<{ jobs: JobView[]; now: number; head: bigint }> {
   const latest = await publicClient.getBlock()
   const head = latest.number
   const now = Number(latest.timestamp)
   if (!cache) cache = { from: await scanFrom(head, now), scanned: -1n, logs: [] }
   const start = cache.scanned < 0n ? cache.from : cache.scanned + 1n
-  if (start <= head) {
-    const address = CONTRACT
-    const raw = address ? await pageLogs((from, to) => publicClient.getLogs({ address, fromBlock: from, toBlock: to }), start, head) : []
-    const fresh = parseEventLogs({ abi: replyBondAbi, logs: raw })
-    cache = { ...cache, scanned: head, logs: [...cache.logs, ...fresh] }
+  const address = CONTRACT
+  if (start <= head && address) {
+    const arrived: Parsed[] = []
+    let emitting = Promise.resolve()
+    const known = cache.logs
+    const collect = (items: StoredLog[]) => {
+      arrived.push(...parseEventLogs({ abi: replyBondAbi, logs: items.map((s) => fromStored(s, address)) }))
+      if (onProgress) emitting = emitting.then(async () => onProgress(await reduce(orderLogs([...known, ...arrived]))))
+    }
+    await scanPages<StoredLog>({
+      from: start,
+      to: head,
+      cache: pageCache,
+      fetchPage: async (from, to) => (await publicClient.getLogs({ address, fromBlock: from, toBlock: to })).map(toStored),
+      onPage: collect,
+    })
+    await emitting
+    cache = { ...cache, scanned: head, logs: [...known, ...arrived] }
   }
   return { jobs: await reduce(orderLogs(cache.logs)), now, head }
 }

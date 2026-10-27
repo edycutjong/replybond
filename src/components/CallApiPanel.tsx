@@ -174,7 +174,11 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
         </button>
       </div>
       {phase === 'error' && <p role="alert" className="mt-3" style={{ color: 'var(--after)' }}>{error}{lowWallets ? null : <> <button className="link" onClick={() => void payAndCall()}>Try again</button></>}</p>}
-      {notice && <p role="status" className="mt-3 text-[15px]">{notice}</p>}
+      {notice && (
+        <p role="status" className="mt-3 text-[15px]">
+          {notice} <button className="link" onClick={() => void payAndCall()}>Try again</button>
+        </p>
+      )}
       {watch.phase === 'busy' && watch.body && <BusyNotice body={watch.body} now={ctx.now} settle={ctx.settle} />}
       {watch.phase === 'error' && <p role="alert" className="mt-3" style={{ color: 'var(--after)' }}>{watch.message}</p>}
 

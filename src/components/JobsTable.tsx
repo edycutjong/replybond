@@ -72,7 +72,7 @@ export interface PoolSummary {
   settling: boolean
 }
 
-export function JobsTable({ ctx, rows, total, pool, loading, error, focus, onFocus }: { ctx: FlowCtx; rows: JobView[]; total: number; pool: PoolSummary; loading: boolean; error: string | null; focus: bigint | null; onFocus: (id: bigint) => void }) {
+export function JobsTable({ ctx, rows, total, pool, loading, scanning = false, error, focus, onFocus }: { ctx: FlowCtx; rows: JobView[]; total: number; pool: PoolSummary; loading: boolean; scanning?: boolean; error: string | null; focus: bigint | null; onFocus: (id: bigint) => void }) {
   const mine = new Set(readMine())
   const shown = rows.slice(0, 25)
   const small = { minHeight: 44, fontSize: 15, padding: '0 12px' }
@@ -118,7 +118,7 @@ export function JobsTable({ ctx, rows, total, pool, loading, error, focus, onFoc
           </tbody>
         </table>
       </div>
-      <p className="label mt-2">Shown: {shown.length} of {total} jobs by this provider{ctx.provider ? '' : ' · waiting for the provider address'}</p>
+      <p className="label mt-2">Shown: {shown.length} of {total} jobs by this provider{ctx.provider ? '' : ' · waiting for the provider address'}{scanning && shown.length > 0 ? ' · reading older blocks…' : ''}</p>
     </section>
   )
 }
