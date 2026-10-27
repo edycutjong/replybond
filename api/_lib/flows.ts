@@ -1,16 +1,19 @@
 import { formatEther, parseEventLogs } from 'viem'
 import type { Address, Hex } from 'viem'
 import { replyBondAbi, Status, STATUS_NAMES } from '../../src/lib/abi.js'
-import { readJob, chainNow, respondToJob, runSweep, settlePath } from './actions.js'
+import { readJob, chainNow, runSweep, settlePath } from './actions.js'
 import type { JobResult } from './actions.js'
-import { BOND, GRACE_WINDOW, POOL_GRACE_WINDOW, POOL_TARGET, PRICE, RESPONSE_WINDOW, ctx, sameAddr } from './config.js'
+import { withDeps } from './deps.js'
+import type { Deps } from './deps.js'
+import { redact } from './http.js'
+import { BOND, GRACE_WINDOW, MIN_WALLET_BALANCE, POOL_GRACE_WINDOW, POOL_TARGET, PRICE, RESPONSE_WINDOW, ctx, sameAddr } from './config.js'
 import { recordByMode } from './fixtures.js'
 import type { Mode, OfferRecord } from './fixtures.js'
-import { busyStatus, classify, loadSnapshot, orphanedExpired, poolStatus, rateStatus } from './state.js'
+import { busyStatus, classify, emptySettleBody, loadSnapshot, orphanedExpired, poolStatus, rateStatus, reusableOffer, rotationCandidates, walletFloor, walletsLowBody } from './state.js'
 import type { Snapshot } from './state.js'
 import { Skipped, sendTx } from './tx.js'
 
-const shortErr = (e: unknown) => (e as { shortMessage?: string }).shortMessage ?? (e as Error).message
+const shortErr = (e: unknown) => redact((e as { shortMessage?: string }).shortMessage ?? (e as Error).message)
 
 const sweepSummary = (s: Awaited<ReturnType<typeof runSweep>>) => ({
   responded: s.responded.length,
@@ -20,16 +23,16 @@ const sweepSummary = (s: Awaited<ReturnType<typeof runSweep>>) => ({
 })
 
 /** `grace` is GRACE_WINDOW for real jobs and POOL_GRACE_WINDOW for refill stock (the on-chain pool marker). */
-async function postOffer(record: OfferRecord, designated: Address, grace: bigint = GRACE_WINDOW) {
-  const tx = await sendTx('provider', 'postOffer', [record.requestHash, designated, PRICE, RESPONSE_WINDOW, grace], { value: BOND })
+async function postOffer(d: Deps, record: OfferRecord, designated: Address, grace: bigint = GRACE_WINDOW) {
+  const tx = await d.send('provider', 'postOffer', [record.requestHash, designated, PRICE, RESPONSE_WINDOW, grace], { value: BOND })
   const ev = parseEventLogs({ abi: replyBondAbi, logs: tx.receipt.logs, eventName: 'OfferPosted' })[0]
   if (!ev) throw new Error(`OfferPosted not found in ${tx.hash}`)
   return { jobId: ev.args.id, txHash: tx.hash }
 }
 
-async function acceptAsDemoBuyer(jobId: bigint) {
-  const tx = await sendTx('buyer', 'acceptOffer', [jobId], { value: PRICE })
-  const job = await readJob(jobId)
+async function acceptAsDemoBuyer(d: Deps, jobId: bigint) {
+  const tx = await d.send('buyer', 'acceptOffer', [jobId], { value: PRICE })
+  const job = await d.readJob(jobId)
   return { txHash: tx.hash, deadline: job?.deadline ?? 0 }
 }
 
@@ -62,26 +65,29 @@ function limited(kind: 'busy' | 'rate_limited', snap: Snapshot, rate: ReturnType
 export type DemoMode = Mode | 'buyer-silent'
 export const isDemoMode = (v: unknown): v is DemoMode => v === 'normal' || v === 'silent' || v === 'buyer-silent'
 
-export async function demoRun(mode: DemoMode): Promise<JobResult> {
-  const sweep = await runSweep()
-  const snap = await loadSnapshot()
+export async function demoRun(mode: DemoMode, deps?: Partial<Deps>): Promise<JobResult> {
+  const d = withDeps(deps)
+  const floor = await walletFloor(d)
+  if (!floor.ok) return { status: 503, body: walletsLowBody(floor) }
+  const sweep = await runSweep(undefined, d)
+  const snap = await d.snapshot()
   const rate = rateStatus(snap, 1)
   if (!rate.allowed) return { status: 409, body: limited('rate_limited', snap, rate, null) }
   const busy = await busyStatus(snap)
   if (busy.busy) return { status: 409, body: limited('busy', snap, rate, busy) }
 
   const record = recordByMode(mode === 'silent' ? 'silent' : 'normal')
-  const posted = await postOffer(record, ctx().demoBuyerAddress)
-  const accepted = await acceptAsDemoBuyer(posted.jobId)
+  const posted = await postOffer(d, record, ctx().demoBuyerAddress)
+  const accepted = await acceptAsDemoBuyer(d, posted.jobId)
   const txHashes: Record<string, Hex | null> = { postOffer: posted.txHash, acceptOffer: accepted.txHash }
   if (mode === 'silent') return { status: 200, body: { mode, jobId: posted.jobId, deadline: accepted.deadline, txHashes, sweep: sweepSummary(sweep) } }
 
-  const answered = await respondToJob(posted.jobId, 'normal')
+  const answered = await d.respond(posted.jobId, 'normal')
   if (answered.status !== 200) return { status: 502, body: { error: 'job route refused our own demo job', jobId: posted.jobId, txHashes, detail: answered.body } }
   txHashes.respond = (answered.body.txHash as Hex | null) ?? null
   if (mode === 'buyer-silent') {
     // The demo buyer does not acknowledge: after the (unchanged) grace window the provider claims.
-    const answeredJob = await readJob(posted.jobId)
+    const answeredJob = await d.readJob(posted.jobId)
     return {
       status: 200,
       body: {
@@ -97,8 +103,8 @@ export async function demoRun(mode: DemoMode): Promise<JobResult> {
       },
     }
   }
-  const ack = await sendTx('buyer', 'acknowledge', [posted.jobId], {
-    precheck: async () => ((await readJob(posted.jobId))?.status === Status.Responded ? null : 'job is not Responded'),
+  const ack = await d.send('buyer', 'acknowledge', [posted.jobId], {
+    precheck: async () => ((await d.readJob(posted.jobId))?.status === Status.Responded ? null : 'job is not Responded'),
   })
   txHashes.acknowledge = ack.hash
   return {
@@ -107,57 +113,108 @@ export async function demoRun(mode: DemoMode): Promise<JobResult> {
   }
 }
 
-export async function ownWalletOffer(buyer: Address): Promise<JobResult> {
-  const sweep = await runSweep()
-  const snap = await loadSnapshot()
-  const rate = rateStatus(snap, 1)
-  if (!rate.allowed) return { status: 429, body: limited('rate_limited', snap, rate, null) }
+function offerBody(d: Deps, jobId: bigint, txHash: Hex | undefined, buyer: Address, sweep: Awaited<ReturnType<typeof runSweep>>, reused: boolean) {
   const record = recordByMode('normal')
-  const posted = await postOffer(record, buyer)
   return {
-    status: 200,
-    body: {
-      jobId: posted.jobId,
-      txHash: posted.txHash,
-      buyer,
-      contract: ctx().replyBond,
-      input: record.input,
-      requestHash: record.requestHash,
-      price: PRICE,
-      priceUsdc: formatEther(PRICE),
-      bond: BOND,
-      bondUsdc: formatEther(BOND),
-      responseWindow: Number(RESPONSE_WINDOW),
-      graceWindow: Number(GRACE_WINDOW),
-      note: 'Accept it from the buyer wallet with acceptOffer(jobId), paying exactly price. The sweep answers within the deadline.',
-      sweep: sweepSummary(sweep),
-    },
+    jobId,
+    txHash: txHash ?? null,
+    buyer,
+    contract: ctx().replyBond,
+    input: record.input,
+    requestHash: record.requestHash,
+    price: PRICE,
+    priceUsdc: formatEther(PRICE),
+    bond: BOND,
+    bondUsdc: formatEther(BOND),
+    responseWindow: Number(RESPONSE_WINDOW),
+    graceWindow: Number(GRACE_WINDOW),
+    reused,
+    note: 'Accept it from the buyer wallet with acceptOffer(jobId), paying exactly price. The sweep answers within the deadline.',
+    sweep: sweepSummary(sweep),
   }
 }
 
-export async function refill(): Promise<JobResult> {
-  const snap = await loadSnapshot()
-  const pool = poolStatus(snap)
-  const need = POOL_TARGET - pool.size
-  if (need <= 0) return { status: 200, body: { created: [], note: 'pool already at target', pool } }
-  let n = need
-  while (n > 0 && !rateStatus(snap, n).allowed) n--
-  if (n === 0) return { status: 429, body: limited('rate_limited', snap, rateStatus(snap, 1), null) }
+export async function ownWalletOffer(buyer: Address, deps?: Partial<Deps>): Promise<JobResult> {
+  const d = withDeps(deps)
+  const sweep = await runSweep(undefined, d)
+  const snap = await d.snapshot()
+  // An offer for this buyer that is still Open and fresh is handed back instead of posting another one.
+  const reusable = reusableOffer(snap, buyer)
+  if (reusable) return { status: 200, body: offerBody(d, reusable.id, reusable.txs.posted, buyer, sweep, true) }
+  // This path spends only the provider's bond and gas, so only the provider wallet must clear the floor.
+  const floor = await walletFloor(d)
+  if (floor.provider < MIN_WALLET_BALANCE) return { status: 503, body: walletsLowBody(floor) }
+  const rate = rateStatus(snap, 1)
+  if (!rate.allowed) return { status: 429, body: limited('rate_limited', snap, rate, null) }
+  const posted = await postOffer(d, recordByMode('normal'), buyer)
+  return { status: 200, body: offerBody(d, posted.jobId, posted.txHash, buyer, sweep, false) }
+}
+
+/**
+ * Tops the pool up to POOL_TARGET silent jobs. With `rotate` (the daily cron) every ready stock job is timed out
+ * first, so stock never gets older than a day. `deadlineMs` bounds the call: no new timeout with less than 5 s
+ * left, no new post+accept pair with less than 15 s left.
+ */
+export async function refill(opts: { rotate?: boolean; deadlineMs?: number } = {}, deps?: Partial<Deps>): Promise<JobResult> {
+  const d = withDeps(deps)
+  const left = () => (opts.deadlineMs === undefined ? Number.POSITIVE_INFINITY : opts.deadlineMs - d.now())
+  let snap = await d.snapshot()
+
+  const rotated: { jobId: bigint; txHash: Hex }[] = []
+  const rotateErrors: { jobId: bigint; error: string }[] = []
+  if (opts.rotate) {
+    for (const j of rotationCandidates(snap)) {
+      if (left() < 5_000) break
+      try {
+        const tx = await d.send('buyer', 'timeout', [j.id], {
+          precheck: async () => {
+            const f = await d.readJob(j.id)
+            return f && f.status === Status.Accepted && (await chainNow()) > f.deadline ? null : 'job is not past its deadline'
+          },
+        })
+        rotated.push({ jobId: j.id, txHash: tx.hash })
+      } catch (err) {
+        if (!(err instanceof Skipped)) rotateErrors.push({ jobId: j.id, error: shortErr(err) })
+      }
+    }
+    snap = await d.snapshot()
+  }
+
+  const need = POOL_TARGET - poolStatus(snap).size
+  if (need <= 0) return { status: 200, body: { created: [], rotated, rotateErrors, note: 'pool already at target', pool: poolStatus(snap) } }
+  const floor = await walletFloor(d)
+  if (!floor.ok) return { status: 503, body: { ...walletsLowBody(floor), rotated } }
+  let planned = need
+  while (planned > 0 && !rateStatus(snap, planned).allowed) planned--
+  if (planned === 0) return { status: 429, body: { ...limited('rate_limited', snap, rateStatus(snap, 1), null), rotated } }
 
   const record = recordByMode('silent')
   const created: { jobId: bigint; postOffer: Hex; acceptOffer: Hex; deadline: number }[] = []
   let failure: string | undefined
-  for (let i = 0; i < n && !failure; i++) {
+  let attempted = 0
+  let stoppedForTime = false
+  for (let i = 0; i < planned && !failure; i++) {
+    if (left() < 15_000) {
+      stoppedForTime = true
+      break
+    }
+    // Re-read the pool before every pair, so concurrent refills cannot overshoot the target by a whole set.
+    const current = i === 0 ? snap : await d.snapshot()
+    if (poolStatus(current).size >= POOL_TARGET || !rateStatus(current, 1).allowed) break
+    attempted++
     try {
-      const posted = await postOffer(record, ctx().demoBuyerAddress, POOL_GRACE_WINDOW)
-      const accepted = await acceptAsDemoBuyer(posted.jobId)
+      const posted = await postOffer(d, record, ctx().demoBuyerAddress, POOL_GRACE_WINDOW)
+      const accepted = await acceptAsDemoBuyer(d, posted.jobId)
       created.push({ jobId: posted.jobId, postOffer: posted.txHash, acceptOffer: accepted.txHash, deadline: accepted.deadline })
     } catch (err) {
       failure = shortErr(err)
     }
   }
-  const after = await loadSnapshot()
-  return { status: failure && !created.length ? 502 : 200, body: { requested: need, attempted: n, created, error: failure, pool: poolStatus(after) } }
+  const after = await d.snapshot()
+  return {
+    status: failure && !created.length ? 502 : 200,
+    body: { requested: need, planned, attempted, created, rotated, rotateErrors, stoppedForTime, error: failure, pool: poolStatus(after) },
+  }
 }
 
 export async function settle(jobId?: bigint): Promise<JobResult> {
@@ -229,8 +286,17 @@ export async function settle(jobId?: bigint): Promise<JobResult> {
     }
   }
 
-  // No jobId: time out the oldest pooled silent job that is past its deadline.
+  // No jobId. A missed deadline nobody settled (a stuck demo job, any fixture) comes first; pool stock waits behind it.
   const pool = poolStatus(snap)
+  for (const o of orphanedExpired(snap)) {
+    try {
+      const tx = await sendTx('buyer', 'timeout', [o.id], { precheck: async () => ((await readJob(o.id))?.status === Status.Accepted ? null : 'already settled') })
+      return done('timeout', o.id, tx.hash, { source: 'expired demo job' })
+    } catch (err) {
+      if (!(err instanceof Skipped)) throw err
+    }
+  }
+  // Then the oldest pooled silent job that is past its deadline.
   for (const id of pool.ready) {
     try {
       const tx = await sendTx('buyer', 'timeout', [id], {
@@ -244,22 +310,11 @@ export async function settle(jobId?: bigint): Promise<JobResult> {
       if (!(err instanceof Skipped)) throw err
     }
   }
-  // Pool empty: an expired silent demo job nobody settled (not pool stock) is still a real, unsettled timeout.
-  for (const o of orphanedExpired(snap)) {
-    try {
-      const tx = await sendTx('buyer', 'timeout', [o.id], { precheck: async () => ((await readJob(o.id))?.status === Status.Accepted ? null : 'already settled') })
-      return done('timeout', o.id, tx.hash, { source: 'expired demo job' })
-    } catch (err) {
-      if (!(err instanceof Skipped)) throw err
-    }
-  }
   const latest = [...snap.jobs].reverse().find((j) => j.status === Status.TimedOut && j.txs.settled)
   return {
     status: 200,
     body: {
-      settled: false,
-      note: pool.nextReadyInSeconds === null ? 'No pooled job yet; call /api/demo-refill.' : `Next one ready in ${pool.nextReadyInSeconds} s.`,
-      nextReadyInSeconds: pool.nextReadyInSeconds,
+      ...emptySettleBody(pool),
       latestSettledTimeout: latest?.txs.settled ? { jobId: latest.id, receipt: await receiptSummary(latest.txs.settled) } : null,
       pool,
       sweep: sweepSummary(sweep),

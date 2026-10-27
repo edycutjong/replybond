@@ -1,8 +1,10 @@
 import { parseEventLogs } from 'viem'
-import type { Address, Hex, Log } from 'viem'
+import type { Address, Hex } from 'viem'
 import { replyBondAbi, Status } from '../../src/lib/abi.js'
-import { LIMITS, POOL_TARGET, ctx, sameAddr } from './config.js'
+import { LIMITS, MIN_WALLET_BALANCE, POOL_TARGET, ctx, sameAddr } from './config.js'
+import type { Deps } from './deps.js'
 import { isPoolStock } from '../../src/lib/pool.js'
+import { pageLogs } from '../../src/lib/pageLogs.js'
 import { recordByHash } from './fixtures.js'
 import type { Mode, OfferRecord } from './fixtures.js'
 
@@ -28,20 +30,6 @@ export interface Snapshot {
   head: bigint
   fromBlock: bigint
   jobs: Job[] // every job posted by OUR provider inside the scanned window, by id
-}
-
-const RANGE_ERR = /range|limit|too many|exceed|response size|more than|too large|timeout/i
-
-async function getLogsChunked(from: bigint, to: bigint, depth = 0): Promise<Log[]> {
-  const c = ctx()
-  try {
-    return await c.pub.getLogs({ address: c.replyBond, fromBlock: from, toBlock: to })
-  } catch (err) {
-    const msg = (err as { message?: string }).message ?? ''
-    if (from >= to || depth >= 6 || !RANGE_ERR.test(msg)) throw err
-    const mid = from + (to - from) / 2n
-    return [...(await getLogsChunked(from, mid, depth + 1)), ...(await getLogsChunked(mid + 1n, to, depth + 1))]
-  }
 }
 
 /** Start block for a ~25h scan: measured from recent block spacing, never earlier than the deployment block. */
@@ -93,7 +81,8 @@ export async function loadSnapshot(): Promise<Snapshot> {
   const fromBlock = cache.from
   const start = nextScanStart(cache)
   if (start <= head) {
-    const fresh = parseEventLogs({ abi: replyBondAbi, logs: await getLogsChunked(start, head) })
+    const raw = await pageLogs((from, to) => c.pub.getLogs({ address: c.replyBond, fromBlock: from, toBlock: to }), start, head)
+    const fresh = parseEventLogs({ abi: replyBondAbi, logs: raw })
     cache = { ...cache, scanned: head, logs: [...cache.logs, ...fresh] }
     writeCache(cache)
   }
@@ -225,13 +214,68 @@ export function poolStatus(s: Snapshot) {
   }
 }
 
-/** Silent demo-buyer jobs past their deadline that are not pool stock (e.g. a watch run nobody settled). */
+/**
+ * Pool stock that is Accepted and past its deadline, oldest first. The daily cron times all of it out and posts
+ * fresh stock, so no stock job ever ages out of the scan window.
+ */
+export function rotationCandidates(s: Snapshot): Job[] {
+  const buyer = ctx().demoBuyerAddress
+  return s.jobs
+    .filter((j) => j.status === Status.Accepted && s.now > j.deadline && isPoolStock(j, buyer) && classify(j, 'silent').ok)
+    .sort((a, b) => (a.deadline === b.deadline ? (a.id < b.id ? -1 : 1) : a.deadline - b.deadline))
+}
+
+/** Demo-buyer jobs of ours past their deadline that are not pool stock (e.g. a watch run nobody settled). Any fixture mode. */
 export function orphanedExpired(s: Snapshot): Job[] {
   const buyer = ctx().demoBuyerAddress
-  return s.jobs.filter(
-    (j) => j.status === Status.Accepted && s.now > j.deadline && sameAddr(j.buyer, buyer) && !isPoolStock(j, buyer) && classify(j, 'silent').ok,
-  )
+  return s.jobs.filter((j) => j.status === Status.Accepted && s.now > j.deadline && sameAddr(j.buyer, buyer) && !isPoolStock(j, buyer) && classify(j).ok)
 }
+
+type PoolStatus = ReturnType<typeof poolStatus>
+
+/** Body of POST /api/settle when nothing could be settled. An empty pool asks the page for a refill. */
+export function emptySettleBody(pool: PoolStatus) {
+  const empty = pool.size === 0
+  return {
+    settled: false,
+    note: empty ? 'No pooled job is ready; the page will request a refill.' : `Next one ready in ${pool.nextReadyInSeconds ?? 0} s.`,
+    refillSuggested: empty,
+    nextReadyInSeconds: pool.nextReadyInSeconds,
+  }
+}
+
+/** An Open normal offer of ours, designated to `buyer`, posted under five minutes ago: reused instead of posting again. */
+export function reusableOffer(s: Snapshot, buyer: string): Job | undefined {
+  return [...s.jobs]
+    .reverse()
+    .find((j) => j.status === Status.Open && sameAddr(j.designated, buyer) && classify(j, 'normal').ok && s.now - j.postedAt < 300)
+}
+
+export function floorOk(provider: bigint, buyer: bigint, min: bigint): boolean {
+  return provider >= min && buyer >= min
+}
+
+export interface WalletFloor {
+  ok: boolean
+  provider: bigint
+  buyer: bigint
+}
+
+/** Native balances of both demo wallets against the floor. */
+export async function walletFloor(deps: Partial<Pick<Deps, 'pub' | 'accounts'>> = {}): Promise<WalletFloor> {
+  const c = ctx()
+  const pub = deps.pub ?? c.pub
+  const accounts = deps.accounts ?? c.accounts
+  const [provider, buyer] = await Promise.all([pub.getBalance({ address: accounts.provider.address }), pub.getBalance({ address: accounts.buyer.address })])
+  return { ok: floorOk(provider, buyer, MIN_WALLET_BALANCE), provider, buyer }
+}
+
+/** HTTP 503 body used by every route that would spend from a low demo wallet. */
+export const walletsLowBody = (f: Pick<WalletFloor, 'provider' | 'buyer'>) => ({
+  error: 'wallets_low',
+  message: 'The demo wallets are low on USDC. The proof transactions on this page stay verifiable on the explorer.',
+  balances: { provider: f.provider, buyer: f.buyer },
+})
 
 export interface BusyReason {
   kind: 'pending_nonce' | 'accepted_within_deadline' | 'responded_within_grace'

@@ -28,7 +28,7 @@ Other commands: `bun run check` (lint and typecheck), `bun run test:offers` (fix
 
 ### Serverless API
 
-The `api/` folder holds Vercel-style functions that also run in the local preview: `/api/job`, `/api/sweep`, `/api/demo-run`, `/api/offer`, `/api/settle` and `/api/demo-refill`. They let reviewers run a paid job with no wallet, settle missed deadlines, and keep a small pool of expired jobs ready. A daily cron (see `vercel.json`) tops the pool up. Set the variables below in Vercel project settings when deploying.
+The `api/` folder holds Vercel-style functions that also run in the local preview: `/api/job`, `/api/sweep`, `/api/demo-run`, `/api/offer`, `/api/settle` and `/api/demo-refill`. They let visitors run a paid job with no wallet, settle missed deadlines, and keep a small pool of expired jobs ready. A daily cron (see `vercel.json`) tops the pool up. Set the variables below in Vercel project settings when deploying.
 
 ### Environment variables
 
@@ -38,6 +38,7 @@ Server (Vercel project environment variables, runtime):
 - `PROVIDER_KEY`: private key of the service-provider wallet. Required.
 - `DEMO_BUYER_KEY`: private key of the demo buyer wallet. Required.
 - `RPC_URL`: RPC endpoint for the configured chain. Required in production; a missing value returns a clear 500.
+- `CRON_SECRET` (optional, recommended in production): when set, the daily pool-rotation job must send it as a bearer token; Vercel Cron does this automatically. Without it the daily job only tops the pool up.
 - `REPLYBOND_ADDRESS`: optional override of `VITE_REPLYBOND_ADDRESS` for the API.
 - `REPLYBOND_START_BLOCK`: optional override of `VITE_REPLYBOND_START_BLOCK` for the API.
 

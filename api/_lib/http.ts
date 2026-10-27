@@ -29,16 +29,26 @@ export function send(res: ApiResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body, replacer, 2))
 }
 
+/** Strips URLs and RPC tokens from an error message before it reaches a client or a response body. */
+export function redact(message: string): string {
+  return message.replace(/https?:\/\/\S+/g, '[url]').replace(/_rpc_token=[^&\s"']+/g, '_rpc_token=REDACTED')
+}
+
+const NOT_AN_OBJECT = 'body must be a JSON object'
+
 export function bodyOf(req: ApiRequest): Record<string, unknown> {
   const b = req.body
+  if (b === undefined || b === null || b === '') return {}
+  let value: unknown = b
   if (typeof b === 'string') {
     try {
-      return JSON.parse(b) as Record<string, unknown>
+      value = JSON.parse(b)
     } catch {
       throw new HttpError(400, 'body is not valid JSON')
     }
   }
-  return b && typeof b === 'object' ? (b as Record<string, unknown>) : {}
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new HttpError(400, NOT_AN_OBJECT)
+  return value as Record<string, unknown>
 }
 
 type Handler = (req: ApiRequest) => Promise<{ status?: number; body: unknown }>
@@ -56,7 +66,7 @@ export function route(methods: string[], handler: Handler) {
     } catch (err) {
       if (err instanceof HttpError) return send(res, err.statusCode, { error: err.message, ...err.extra })
       const e = err as { shortMessage?: string; message?: string; name?: string }
-      send(res, 500, { error: e.shortMessage ?? e.message ?? 'internal error', name: e.name })
+      send(res, 500, { error: redact(e.shortMessage ?? e.message ?? 'internal error'), name: e.name })
     }
   }
 }
@@ -67,4 +77,17 @@ export function parseJobId(v: unknown): bigint {
     if (id > 0n) return id
   }
   throw new HttpError(400, 'jobId must be a positive integer')
+}
+
+/**
+ * True only when a cron secret is configured and the request carries exactly `Bearer <secret>` (Vercel Cron sends
+ * that header whenever CRON_SECRET exists). A user-agent check would not do: anyone can send one.
+ */
+export function isCronRequest(authorization: string | string[] | undefined, secret: string | undefined = process.env.CRON_SECRET): boolean {
+  if (!secret || typeof authorization !== 'string') return false
+  const want = `Bearer ${secret}`
+  // Compare every character even after a mismatch, so timing does not reveal how much of the secret was right.
+  let diff = authorization.length ^ want.length
+  for (let i = 0; i < want.length; i++) diff |= (authorization.charCodeAt(i) || 0) ^ want.charCodeAt(i)
+  return diff === 0
 }

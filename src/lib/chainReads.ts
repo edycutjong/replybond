@@ -5,6 +5,7 @@ import { appChain, CONTRACT, START_BLOCK } from './appConfig'
 import { classifyReceipt } from './classifyReceipt'
 import type { Classification } from './classifyReceipt'
 import type { ReceiptSummary } from './api'
+import { pageLogs } from './pageLogs'
 
 export const publicClient = createPublicClient({ chain: appChain, transport: http(appChain.rpcUrls.default.http[0], { batch: { wait: 20 }, retryCount: 5, retryDelay: 300 }), pollingInterval: 500 })
 
@@ -28,21 +29,6 @@ export interface JobView {
 }
 
 type Parsed = ReturnType<typeof parseEventLogs<typeof replyBondAbi>>[number]
-
-const RANGE_ERR = /range|limit|too many|exceed|response size|more than|too large|timeout/i
-
-async function getLogsChunked(from: bigint, to: bigint, depth = 0): Promise<Parsed[]> {
-  if (!CONTRACT) return []
-  try {
-    const raw = await publicClient.getLogs({ address: CONTRACT, fromBlock: from, toBlock: to })
-    return parseEventLogs({ abi: replyBondAbi, logs: raw })
-  } catch (err) {
-    const msg = (err as { message?: string }).message ?? ''
-    if (from >= to || depth >= 6 || !RANGE_ERR.test(msg)) throw err
-    const mid = from + (to - from) / 2n
-    return [...(await getLogsChunked(from, mid, depth + 1)), ...(await getLogsChunked(mid + 1n, to, depth + 1))]
-  }
-}
 
 /** Start of a ~25h scan, measured from recent block spacing and never before the deployment block. */
 async function scanFrom(head: bigint, headTs: number): Promise<bigint> {
@@ -145,7 +131,9 @@ export async function loadJobs(): Promise<{ jobs: JobView[]; now: number; head: 
   if (!cache) cache = { from: await scanFrom(head, now), scanned: -1n, logs: [] }
   const start = cache.scanned < 0n ? cache.from : cache.scanned + 1n
   if (start <= head) {
-    const fresh = await getLogsChunked(start, head)
+    const address = CONTRACT
+    const raw = address ? await pageLogs((from, to) => publicClient.getLogs({ address, fromBlock: from, toBlock: to }), start, head) : []
+    const fresh = parseEventLogs({ abi: replyBondAbi, logs: raw })
     cache = { ...cache, scanned: head, logs: [...cache.logs, ...fresh] }
   }
   return { jobs: await reduce(cache.logs), now, head }

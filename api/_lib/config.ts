@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, defineChain, getAddress, http, isAddress, parseGwei } from 'viem'
+import { createPublicClient, createWalletClient, defineChain, getAddress, http, isAddress, parseEther, parseGwei } from 'viem'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { GRACE_WINDOW_S, POOL_GRACE_WINDOW_S, RESPONSE_WINDOW_S } from '../../src/lib/terms.js'
@@ -16,7 +16,9 @@ export { BOND, PRICE } from '../../src/lib/terms.js'
 export const RESPONSE_WINDOW = BigInt(RESPONSE_WINDOW_S)
 export const GRACE_WINDOW = BigInt(GRACE_WINDOW_S)
 export const POOL_GRACE_WINDOW = BigInt(POOL_GRACE_WINDOW_S)
-export const LIMITS = { hour: 30, day: 150 } as const
+export const LIMITS = { hour: 20, day: 80 } as const
+/** Both demo wallets must hold at least this much (18-decimal native USDC) before the server posts new offers. */
+export const MIN_WALLET_BALANCE = parseEther('0.1')
 export const OPEN_OFFER_MAX_AGE_S = 600
 export const POOL_TARGET = 3
 

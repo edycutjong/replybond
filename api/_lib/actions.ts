@@ -4,7 +4,10 @@ import { replyBondAbi, Status, STATUS_NAMES } from '../../src/lib/abi.js'
 import { OPEN_OFFER_MAX_AGE_S, ctx, sameAddr } from './config.js'
 import { hashInput } from './fixtures.js'
 import type { Mode } from './fixtures.js'
+import type { Deps } from './deps.js'
+import { redact } from './http.js'
 import { classify, loadSnapshot } from './state.js'
+import type { Snapshot } from './state.js'
 import { Skipped, sendTx } from './tx.js'
 
 export interface ChainJob {
@@ -143,10 +146,49 @@ export interface SweepResult {
   errors: { jobId: bigint; action: string; error: string }[]
 }
 
-/** Idempotent dispatch sweep over our provider's jobs. Never responds to silent records. */
-export async function runSweep(): Promise<SweepResult> {
-  const snap = await loadSnapshot()
+export type SweepAction = 'respond' | 'claim' | 'withdraw'
+export interface PlannedAction {
+  jobId: bigint
+  action: SweepAction
+}
+
+/** At most this many claims plus withdrawals run in one sweep; answering a buyer always comes first. */
+export const SWEEP_SETTLE_CAP = 3
+
+/**
+ * Order of work for one sweep: every respond (soonest deadline first), then claims, then withdrawals.
+ * Claims and withdrawals together are capped; what is left over is reported as skipped and picked up next time.
+ */
+export function planSweep(snap: Snapshot): { actions: PlannedAction[]; skipped: { jobId: bigint; action: SweepAction; why: string }[] } {
+  const responds: Snapshot['jobs'] = []
+  const rest: PlannedAction[] = []
+  const claims: PlannedAction[] = []
+  const withdraws: PlannedAction[] = []
+  for (const j of snap.jobs) {
+    const cls = classify(j)
+    if (cls.ok && cls.record.mode === 'normal' && j.status === Status.Accepted && snap.now <= j.deadline) responds.push(j)
+    else if (cls.ok && j.status === Status.Responded && snap.now > j.respondedAt + j.graceWindow) claims.push({ jobId: j.id, action: 'claim' })
+    else if (j.status === Status.Open && snap.now - j.postedAt > OPEN_OFFER_MAX_AGE_S) withdraws.push({ jobId: j.id, action: 'withdraw' })
+  }
+  responds.sort((a, b) => (a.deadline === b.deadline ? (a.id < b.id ? -1 : 1) : a.deadline - b.deadline))
+  rest.push(...claims, ...withdraws)
+  return {
+    actions: [...responds.map((j): PlannedAction => ({ jobId: j.id, action: 'respond' })), ...rest.slice(0, SWEEP_SETTLE_CAP)],
+    skipped: rest.slice(SWEEP_SETTLE_CAP).map((a) => ({ ...a, why: 'cap' })),
+  }
+}
+
+/**
+ * Idempotent dispatch sweep over our provider's jobs. Never responds to silent records.
+ * With `deadlineMs` (a Date.now()-style time) it starts no new action once that time has passed.
+ */
+export async function runSweep(deadlineMs?: number, deps: Partial<Pick<Deps, 'now' | 'send' | 'snapshot' | 'respond'>> = {}): Promise<SweepResult> {
+  const now = deps.now ?? (() => Date.now())
+  const send = deps.send ?? sendTx
+  const respond = deps.respond ?? respondToJob
+  const snap = await (deps.snapshot ?? loadSnapshot)()
   const c = ctx()
+  const plan = planSweep(snap)
   const out: SweepResult = {
     contract: c.replyBond,
     chainId: c.chain.id,
@@ -158,36 +200,34 @@ export async function runSweep(): Promise<SweepResult> {
     responded: [],
     claimed: [],
     withdrawn: [],
-    skipped: [],
+    skipped: [...plan.skipped],
     errors: [],
   }
-  for (const j of snap.jobs) {
-    const cls = classify(j)
-    let action: 'respond' | 'claim' | 'withdraw' | null = null
-    if (cls.ok && cls.record.mode === 'normal' && j.status === Status.Accepted && snap.now <= j.deadline) action = 'respond'
-    else if (cls.ok && j.status === Status.Responded && snap.now > j.respondedAt + j.graceWindow) action = 'claim'
-    else if (j.status === Status.Open && snap.now - j.postedAt > OPEN_OFFER_MAX_AGE_S) action = 'withdraw'
-    if (!action) continue
+  for (const { jobId, action } of plan.actions) {
+    if (deadlineMs !== undefined && now() >= deadlineMs) {
+      out.skipped.push({ jobId, action, why: 'budget' })
+      continue
+    }
     try {
       if (action === 'respond') {
-        const r = await respondToJob(j.id, 'normal')
-        if (r.status === 200 && typeof r.body.txHash === 'string' && !r.body.alreadyResponded) out.responded.push({ jobId: j.id, txHash: r.body.txHash as Hex })
-        else out.skipped.push({ jobId: j.id, action, why: String(r.body.reason ?? 'already responded') })
+        const r = await respond(jobId, 'normal')
+        if (r.status === 200 && typeof r.body.txHash === 'string' && !r.body.alreadyResponded) out.responded.push({ jobId, txHash: r.body.txHash as Hex })
+        else out.skipped.push({ jobId, action, why: String(r.body.reason ?? 'already responded') })
       } else {
         const fn = action === 'claim' ? 'claim' : 'withdrawOffer'
         const want = action === 'claim' ? Status.Responded : Status.Open
-        const tx = await sendTx('provider', fn, [j.id], {
+        const tx = await send('provider', fn, [jobId], {
           precheck: async () => {
-            const fresh = await readJob(j.id)
+            const fresh = await readJob(jobId)
             if (!fresh || fresh.status !== want) return `job is no longer ${STATUS_NAMES[want]}`
             return action === 'claim' && (await chainNow()) <= fresh.respondedAt + fresh.graceWindow ? 'grace window not over' : null
           },
         })
-        ;(action === 'claim' ? out.claimed : out.withdrawn).push({ jobId: j.id, txHash: tx.hash })
+        ;(action === 'claim' ? out.claimed : out.withdrawn).push({ jobId, txHash: tx.hash })
       }
     } catch (err) {
-      if (err instanceof Skipped) out.skipped.push({ jobId: j.id, action, why: err.message })
-      else out.errors.push({ jobId: j.id, action, error: (err as { shortMessage?: string; message?: string }).shortMessage ?? (err as Error).message })
+      if (err instanceof Skipped) out.skipped.push({ jobId, action, why: err.message })
+      else out.errors.push({ jobId, action, error: redact((err as { shortMessage?: string; message?: string }).shortMessage ?? (err as Error).message) })
     }
   }
   return out

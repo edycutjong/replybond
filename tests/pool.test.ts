@@ -1,14 +1,7 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
-import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
+import { demoBuyerAddress as demoBuyer, providerAddress as provider } from './api-env'
 import type { Address } from 'viem'
-
-process.env.PROVIDER_KEY = generatePrivateKey()
-process.env.DEMO_BUYER_KEY = generatePrivateKey()
-const providerKey = process.env.PROVIDER_KEY as `0x${string}`
-const buyerKey = process.env.DEMO_BUYER_KEY as `0x${string}`
-const provider = privateKeyToAccount(providerKey).address
-const demoBuyer = privateKeyToAccount(buyerKey).address
 
 const { offers } = await import('../src/lib/offers')
 const { isPoolStock } = await import('../src/lib/pool')
