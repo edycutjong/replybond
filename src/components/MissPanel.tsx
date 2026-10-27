@@ -45,7 +45,7 @@ export function MissPanel({ ctx }: { ctx: FlowCtx }) {
   return (
     <section aria-labelledby="miss-title" className="bg-card p-5" style={{ border: '1px solid var(--rule)' }}>
       <h2 id="miss-title" className="panel-title">Make the API miss its deadline</h2>
-      <p className="mt-1 data text-[14px]">price {fmtUsdc(PRICE)} · bond {fmtUsdc(BOND)} · window {RESPONSE_WINDOW_S} s · grace {GRACE_WINDOW_S} s</p>
+      <p className="mt-1 data wrap text-[14px]">price {fmtUsdc(PRICE)} · bond {fmtUsdc(BOND)} · window {RESPONSE_WINDOW_S} s · grace {GRACE_WINDOW_S} s</p>
       <p className="mt-2 text-[15px]">Our demo provider is an echo service. In this panel it stays silent on purpose.</p>
       <div className="mt-3">
         <button className="btn btn-primary" onClick={() => void run()} disabled={phase === 'starting'}>

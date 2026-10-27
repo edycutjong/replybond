@@ -62,10 +62,18 @@ body {
   white-space: nowrap;
 }
 
+/* A data line that may wrap (the mono face is otherwise nowrap). */
+.wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* Buttons: ruled boxes of a form, one primary. */
 .btn {
   min-height: 44px;
-  padding: 0 20px;
+  padding: 6px 20px;
+  white-space: normal; /* long labels wrap inside the button instead of widening the page */
+  text-align: center;
   font-family: var(--font-display);
   font-size: 18px;
   letter-spacing: 0.08em;

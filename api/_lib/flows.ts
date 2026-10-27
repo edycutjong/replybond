@@ -150,10 +150,20 @@ export async function ownWalletOffer(buyer: Address, deps?: Partial<Deps>): Prom
   return { status: 200, body: offerBody(d, posted.jobId, posted.txHash, buyer, sweep, false) }
 }
 
+/** The platform stops a function at 60 s: the daily cron call stays inside 50 s, the page's on-demand call inside 45 s. */
+export const CRON_REFILL_BUDGET_MS = 50_000
+export const ON_DEMAND_REFILL_BUDGET_MS = 45_000
+
+/** Options for one refill call. Only the authorised cron call rotates stock; both calls carry a deadline. */
+export function refillOptions(cron: boolean, startedMs: number): { rotate: boolean; deadlineMs: number } {
+  return { rotate: cron, deadlineMs: startedMs + (cron ? CRON_REFILL_BUDGET_MS : ON_DEMAND_REFILL_BUDGET_MS) }
+}
+
 /**
  * Tops the pool up to POOL_TARGET silent jobs. With `rotate` (the daily cron) every ready stock job is timed out
  * first, so stock never gets older than a day. `deadlineMs` bounds the call: no new timeout with less than 5 s
- * left, no new post+accept pair with less than 15 s left.
+ * left, no new post+accept pair with less than 15 s left, so a function is never stopped between a post and its accept
+ * by a call that was allowed to start the pair.
  */
 export async function refill(opts: { rotate?: boolean; deadlineMs?: number } = {}, deps?: Partial<Deps>): Promise<JobResult> {
   const d = withDeps(deps)

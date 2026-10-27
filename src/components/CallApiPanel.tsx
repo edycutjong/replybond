@@ -160,7 +160,7 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
   return (
     <section aria-labelledby="call-title" className="bg-card p-5" style={{ border: '1px solid var(--rule)' }}>
       <h2 id="call-title" className="panel-title">Call the API</h2>
-      <p className="mt-1 data text-[14px]">price {fmtUsdc(PRICE)} · bond {fmtUsdc(BOND)} · window {RESPONSE_WINDOW_S} s · grace {GRACE_WINDOW_S} s</p>
+      <p className="mt-1 data wrap text-[14px]">price {fmtUsdc(PRICE)} · bond {fmtUsdc(BOND)} · window {RESPONSE_WINDOW_S} s · grace {GRACE_WINDOW_S} s</p>
       <p className="mt-2 text-[15px]">Our demo provider is an echo service: it answers with your input in capitals.</p>
       <div className="mt-3 flex flex-wrap gap-3">
         <button className="btn btn-primary" onClick={() => void payAndCall()} disabled={busyFlow || running}>

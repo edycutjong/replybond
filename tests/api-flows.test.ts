@@ -139,3 +139,34 @@ test('runSweep: a silent job is never answered, a normal one inside its deadline
   assert.deepEqual(answered, [normalRunning.id])
   assert.equal(out.responded.length, 1)
 })
+
+test('the on-demand refill carries a 45 s deadline and never rotates; the cron call keeps 50 s', async () => {
+  const { refillOptions } = await import('../api/_lib/flows')
+  assert.deepEqual(refillOptions(false, 1_000_000), { rotate: false, deadlineMs: 1_045_000 })
+  assert.deepEqual(refillOptions(true, 1_000_000), { rotate: true, deadlineMs: 1_050_000 })
+})
+
+test('on-demand refill with a slow chain: no pair starts with less than 15 s left, and the stop is reported', async () => {
+  const { refillOptions } = await import('../api/_lib/flows')
+  // each send takes 10 s, so a post+accept pair takes 20 s: pair 1 starts at 0 s, pair 2 at 20 s, and at 40 s only 5 s are left
+  const f = fakes([snap([])], { sendMs: 10_000 })
+  const r = await refill(refillOptions(false, f.clock.t), f.deps)
+  assert.deepEqual(f.calls.map((c) => c.fn), ['postOffer', 'acceptOffer', 'postOffer', 'acceptOffer'])
+  assert.equal(r.body.attempted, 2)
+  assert.equal(r.body.planned, 3)
+  assert.equal(r.body.stoppedForTime, true)
+  assert.equal(f.calls.some((c) => c.fn === 'timeout'), false, 'the on-demand call never rotates')
+  const deadline = 1_000_000 + 45_000
+  for (const c of f.calls.filter((x) => x.fn === 'postOffer')) assert.ok(deadline - c.at >= 15_000, 'a pair starts with at least 15 s left')
+  assert.ok(f.clock.t <= deadline, 'the call ends inside its budget')
+})
+
+test('on-demand refill on a fast chain still fills the pool', async () => {
+  const { refillOptions } = await import('../api/_lib/flows')
+  // each re-read of the pool shows what the previous pairs added
+  const waiting = (n: number) => snap(Array.from({ length: n }, () => job({ deadline: NOW + 40 })))
+  const f = fakes([snap([]), waiting(1), waiting(2), waiting(3)], { sendMs: 100 })
+  const r = await refill(refillOptions(false, f.clock.t), f.deps)
+  assert.equal(r.body.attempted, 3)
+  assert.equal(r.body.stoppedForTime, false)
+})

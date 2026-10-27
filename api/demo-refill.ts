@@ -1,5 +1,5 @@
 import { runSweep } from './_lib/actions.js'
-import { refill } from './_lib/flows.js'
+import { refill, refillOptions } from './_lib/flows.js'
 import { isCronRequest, route } from './_lib/http.js'
 
 /**
@@ -7,14 +7,16 @@ import { isCronRequest, route } from './_lib/http.js'
  * accepted by, the demo buyer. The daily cron call also runs the sweep and rotates ready stock first.
  */
 export default route(['GET', 'POST'], async (req) => {
-  if (!isCronRequest(req.headers.authorization)) {
-    const r = await refill({ rotate: false })
+  const cron = isCronRequest(req.headers.authorization)
+  // Both paths are bounded: the platform stops a function at 60 s, and a call cut off between a post and its accept
+  // would leave an offer behind. The on-demand call never rotates and never runs the sweep.
+  const opts = refillOptions(cron, Date.now())
+  if (!cron) {
+    const r = await refill(opts)
     return { status: r.status, body: r.body }
   }
-  const started = Date.now()
-  const deadlineMs = started + 50_000
-  const sweep = await runSweep(deadlineMs)
-  const r = await refill({ rotate: true, deadlineMs })
+  const sweep = await runSweep(opts.deadlineMs)
+  const r = await refill(opts)
   return {
     status: r.status,
     body: {

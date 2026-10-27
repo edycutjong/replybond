@@ -157,9 +157,9 @@ export default function App() {
           Config warning: the server's provider address differs from VITE_PROVIDER_ADDRESS, so some jobs may be missing here.
         </p>
       )}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="lg:order-2"><MissPanel ctx={ctx} /></div>
-        <div className="lg:order-1"><CallApiPanel ctx={ctx} /></div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="min-w-0 lg:order-2"><MissPanel ctx={ctx} /></div>
+        <div className="min-w-0 lg:order-1"><CallApiPanel ctx={ctx} /></div>
       </div>
       <MoneyTrail job={focusJob} settlement={focusJob ? settlements.byJob[String(focusJob.id)] : undefined} />
       <JobsTable
