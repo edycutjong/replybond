@@ -1,15 +1,15 @@
-import type { ReactNode } from 'react'
-import { CHAIN_ID, CONTRACT, STUDIO_PROJECT_URL, addressUrl, fmtUsdc, shortHash } from '@/lib/appConfig'
-import { MAINNET_PROOF, sourcifyUrl } from '@/lib/proof'
+import type { MouseEvent, ReactNode } from 'react'
+import { CHAIN_ID, CONTRACT, STUDIO_PROJECT_URL, TURNS_TABLE_URL, addressUrl, fmtUsdc, shortHash } from '@/lib/appConfig'
+import { MAINNET_PROOF, proofSteps, sourcifyUrl } from '@/lib/proof'
 import { BOND, DEMO_OFFER_LIMITS, GRACE_WINDOW_S, MAX_OUTPUT_BYTES, MIN_WALLET_BALANCE_NATIVE, PRICE, RESPONSE_WINDOW_S } from '@/lib/terms'
-import { ArrowRight, ExternalLink } from 'lucide-react'
+import { ArrowDown, ArrowRight, ExternalLink } from 'lucide-react'
 import { NavLink } from './NavLink'
 import { TxLink } from './ui'
 
 export function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="mt-10 pt-6" style={{ borderTop: '1px solid var(--rule)' }}>
-      <h2 id={id} className="panel-title">
+    <section aria-labelledby={id} className="landing-section mt-10 pt-6" style={{ borderTop: '1px solid var(--rule)' }}>
+      <h2 id={id} className="panel-title" tabIndex={-1}>
         {title}
       </h2>
       <div className="mt-3 grid gap-3 text-[17px] max-w-[760px]">{children}</div>
@@ -82,20 +82,45 @@ export function HowItWorks() {
   )
 }
 
-const PROOF_LABELS = ['postOffer', 'acceptOffer', 'respond', 'acknowledge', 'timeout', 'claim'] as const
+const onMainnet = CHAIN_ID === MAINNET_PROOF.chainId
+
+/** Jumps to the mainnet section; smooth unless the visitor asked for reduced motion. Only shown where the proof set is. */
+export function JumpToProof() {
+  if (!onMainnet) return null
+  const count = proofSteps(fmtUsdc).length
+  const onClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    const heading = document.getElementById('live')
+    if (!heading) return
+    e.preventDefault()
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ;(heading.closest('section') ?? heading).scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+    window.history.replaceState(null, '', '#live')
+    heading.focus({ preventScroll: true })
+  }
+  return (
+    <a href="#live" className="link inline-flex items-center gap-1" onClick={onClick}>
+      See the {count} mainnet transactions <ArrowDown size={16} aria-hidden />
+    </a>
+  )
+}
 
 /** The verified mainnet deployment and its proof transactions, only on Arc mainnet; any other chain shows its configured contract. */
 export function LiveContract() {
-  if (CHAIN_ID === MAINNET_PROOF.chainId) {
+  if (onMainnet) {
     const address = MAINNET_PROOF.contract
     return (
       <Section id="live" title="Live on Arc mainnet">
-        <p>
-          Contract{' '}
-          <a className="link data text-[15px]" style={{ whiteSpace: 'normal', wordBreak: 'break-all' }} href={addressUrl(address)} target="_blank" rel="noopener noreferrer" title={address}>
-            {address} <ExternalLink size={13} className="inline -mt-1" aria-hidden />
-          </a>
-        </p>
+        <div className="grid gap-2">
+          <p>
+            Contract{' '}
+            <a className="link data text-[15px]" href={addressUrl(address)} target="_blank" rel="noopener noreferrer" title={address}>
+              {shortHash(address)} <ExternalLink size={13} className="inline -mt-1" aria-hidden />
+            </a>
+          </p>
+          <div className="addrbox data" tabIndex={0} role="group" aria-label="Full contract address">
+            {address}
+          </div>
+        </div>
         <p>
           Source verified on Sourcify as an exact match:{' '}
           <a className="link" href={sourcifyUrl(address)} target="_blank" rel="noopener noreferrer">
@@ -104,10 +129,11 @@ export function LiveContract() {
         </p>
         <div>
           <p className="label mb-2">Proof transactions, one per step</p>
-          <ul className="flex flex-wrap gap-x-5 gap-y-2 list-none p-0">
-            {PROOF_LABELS.map((name) => (
-              <li key={name}>
-                <TxLink hash={MAINNET_PROOF.txs[name]} label={name} />
+          <ul className="grid gap-2 list-none p-0">
+            {proofSteps(fmtUsdc).map((step) => (
+              <li key={step.name} className="flex flex-wrap items-baseline gap-x-3 gap-y-0">
+                <TxLink hash={step.hash} label={step.name} />
+                <span style={{ color: 'var(--muted-strong)' }}>{step.result}</span>
               </li>
             ))}
           </ul>
@@ -135,10 +161,16 @@ export function BuiltWithStudio() {
         ReplyBond was built with Arc Studio, the contract, its tests and this app.{' '}
         <a className="link" href={STUDIO_PROJECT_URL} target="_blank" rel="noopener noreferrer">
           Open the project <ExternalLink size={13} className="inline -mt-1" aria-hidden />
+        </a>{' '}
+        <span style={{ color: 'var(--muted-strong)' }}>(opens with an Arc Studio login)</span>
+      </p>
+      <p>
+        <a className="link" href={TURNS_TABLE_URL} target="_blank" rel="noopener noreferrer">
+          How it was built: the turn-by-turn table <ExternalLink size={13} className="inline -mt-1" aria-hidden />
         </a>
       </p>
-      {CHAIN_ID === MAINNET_PROOF.chainId && (
-        <p style={{ color: 'var(--muted)' }}>
+      {onMainnet && (
+        <p style={{ color: 'var(--muted-strong)' }}>
           One honest note: the mainnet contract was deployed with <span className="data text-[15px]">forge create</span> on the unchanged Studio source, because Studio deploys to testnet only.
         </p>
       )}
@@ -151,7 +183,7 @@ export function LimitsAndNext() {
     <Section id="limits" title="Honest limits">
       <ul className="grid gap-2 list-disc pl-5">
         <li>It proves the answer was delivered onchain on time. It does not prove the answer is correct.</li>
-        <li>Outputs are public, and limited to {MAX_OUTPUT_BYTES} bytes.</li>
+        <li>Outputs are public, and limited to {MAX_OUTPUT_BYTES.toLocaleString('en-US')} bytes.</li>
         <li>
           The demo uses a price of <span className="data text-[15px]">{fmtUsdc(PRICE)}</span> USDC, a bond of <span className="data text-[15px]">{fmtUsdc(BOND)}</span> USDC, a{' '}
           {RESPONSE_WINDOW_S} s response window and a {GRACE_WINDOW_S} s grace window.

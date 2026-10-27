@@ -1,4 +1,5 @@
 // Pure config helpers (no env access), so they can be tested for every chain.
+import { BOND, PRICE } from './terms'
 
 /**
  * The verified Arc mainnet deployment and its proof transactions: the only place these values live. The landing page links to
@@ -40,4 +41,41 @@ export function networkLabel(chainId: number, registryName: string, isTestnet: b
   if (chainId === 5042) return 'Arc mainnet'
   if (chainId === 5042002) return 'Arc testnet'
   return isTestnet && !/test/i.test(registryName) ? `${registryName} testnet` : registryName
+}
+
+export interface ProofStep {
+  name: keyof typeof MAINNET_PROOF.txs
+  hash: string
+  /** What the transaction did, with every figure taken from the job terms. */
+  result: string
+}
+
+/** The mainnet proof transactions in order, each with its result. `fmt` formats a native-USDC amount. */
+export function proofSteps(fmt: (raw: bigint) => string): ProofStep[] {
+  const total = fmt(PRICE + BOND)
+  const t = MAINNET_PROOF.txs
+  return [
+    { name: 'postOffer', hash: t.postOffer, result: `provider posts a ${fmt(BOND)} bond` },
+    { name: 'acceptOffer', hash: t.acceptOffer, result: `buyer pays ${fmt(PRICE)}` },
+    { name: 'respond', hash: t.respond, result: 'answer written onchain' },
+    { name: 'acknowledge', hash: t.acknowledge, result: `provider paid ${total}` },
+    { name: 'timeout', hash: t.timeout, result: `buyer +${total}` },
+    { name: 'claim', hash: t.claim, result: `provider +${total}, buyer silent` },
+  ]
+}
+
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+
+/**
+ * The caption under the landing hero card. When the card is the pinned proof settlement it says so (with its job id);
+ * otherwise it says the card is the latest live run and, on Arc mainnet, where the fixed proof set is.
+ */
+export function heroCaption(o: { shownTx: string | null; pinnedTx: string | null; jobId: string | null; proofCount: number | null }): string | null {
+  if (!o.shownTx) return null
+  if (o.pinnedTx && o.shownTx.toLowerCase() === o.pinnedTx.toLowerCase()) {
+    return o.jobId ? `This is the pinned proof settlement (job ${Number(o.jobId)}).` : 'This is the pinned proof settlement.'
+  }
+  if (o.proofCount === null) return 'Latest live run shown above.'
+  const n = o.proofCount <= 10 ? WORDS[o.proofCount] : String(o.proofCount)
+  return `Latest live run shown above. The fixed ${n}-transaction proof set is further down.`
 }

@@ -37,6 +37,9 @@ export const DEMO_BUYER_ADDRESS = configuredAddress(env.VITE_DEMO_BUYER_ADDRESS)
 /** A real settled timeout pinned in the hero when the scanned window holds none (see proof.ts). */
 export const PROOF_TIMEOUT_TX = proofTimeoutTx(CHAIN_ID, env.VITE_PROOF_TIMEOUT_TX)
 
+/** The README section that lists the Studio turns one by one. */
+export const TURNS_TABLE_URL = 'https://github.com/edycutjong/replybond#how-arc-studio-built-it'
+
 export const STUDIO_PROJECT_URL =
   env.VITE_STUDIO_PROJECT_URL?.trim() || 'https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4'
 

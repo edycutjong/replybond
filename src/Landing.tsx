@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { BuiltWithStudio, HowItWorks, LimitsAndNext, LiveContract, OpenAppButton } from './components/landing'
+import { BuiltWithStudio, HowItWorks, JumpToProof, LimitsAndNext, LiveContract, OpenAppButton } from './components/landing'
 import { Header } from './components/Header'
 import { Hero } from './components/Hero'
 import { useChainIdentity } from './hooks/useChainIdentity'
@@ -8,6 +8,8 @@ import { useJobs, useTick } from './hooks/useJobs'
 import { useSettleNow } from './hooks/useSettleNow'
 import { useSettlements } from './hooks/useSettlements'
 import { Status } from './lib/abi'
+import { CHAIN_ID, NETWORK_NAME, PROOF_TIMEOUT_TX } from './lib/appConfig'
+import { MAINNET_PROOF, heroCaption } from './lib/proof'
 
 /** `/`: the problem, a live stamp hero from the same receipt path as the app, how it works, the proof, the limits. */
 export default function Landing() {
@@ -36,6 +38,14 @@ export default function Landing() {
 
   const { initial, heroLoading } = useHeroCard({ ours, settlements, loading, scanning, waitingOnSweep: identity.waiting })
 
+  // Says whether the card is the pinned proof or a live run, and where the fixed proof set is.
+  const caption = heroCaption({
+    shownTx: initial?.settlement.txHash ?? null,
+    pinnedTx: PROOF_TIMEOUT_TX,
+    jobId: initial?.jobId ?? null,
+    proofCount: CHAIN_ID === MAINNET_PROOF.chainId ? Object.keys(MAINNET_PROOF.txs).length : null,
+  })
+
   return (
     <main className="mx-auto max-w-[1100px] px-4 pb-28">
       <Header variant="landing" />
@@ -48,7 +58,22 @@ export default function Landing() {
         </p>
       </section>
       <div className="mt-5">
-        <Hero settle={settle} initial={initial} loading={heroLoading} demoBuyer={identity.demoBuyer ?? undefined} now={now} stacked extraAction={<OpenAppButton />} />
+        <Hero
+          settle={settle}
+          initial={initial}
+          loading={heroLoading}
+          demoBuyer={identity.demoBuyer ?? undefined}
+          now={now}
+          stacked
+          extraAction={
+            <>
+              <OpenAppButton />
+              <JumpToProof />
+            </>
+          }
+          caption={caption}
+          subline={`Sends a real settlement on ${NETWORK_NAME}. Refund + penalty lands in seconds.`}
+        />
       </div>
       <HowItWorks />
       <LiveContract />

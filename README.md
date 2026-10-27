@@ -14,7 +14,9 @@
 
 **Built in Arc Studio:** https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4 (opens with an Arc Studio login)
 
-**Tests:** `forge test`: 66 passed, 0 failed (63 unit and fuzz tests, 3 invariants at 256 runs of 128,000 calls each) · `bun test tests/`: 90 passed, 0 failed (13 files)
+**Tests:** `forge test`: 66 passed, 0 failed (63 unit and fuzz tests, 3 invariants at 256 runs of 128,000 calls each) · `bun test tests/`: 92 passed, 0 failed (13 files)
+
+<p><a href="#mainnet-proof">Mainnet proof</a> · <a href="#how-it-works">How it works</a> · <a href="#how-arc-studio-built-it">How Arc Studio built it</a></p>
 
 </div>
 
@@ -81,14 +83,14 @@ The app and contract were built in [Arc Studio](https://studio.arc.io/app/aaea9a
 | `882ec02` | fix 4.1 | Vercel-ready `api/` (TypeScript fixture module, Node ESM imports, build script), strict `RPC_URL` and env handling in production, and the private deploy scripts removed. |
 | `9417730` | fix 4.2 | The counterfoil and stamp hero, the withdrawn label, badge placement, a current-provider job table with collapsed pool stock, and pool stock exempt from the busy rule. |
 | `11b4bfc` | fix 4.3 | Receipt read retries (no stored UNREADABLE on RPC errors), classifying settle-route receipts, and the buyer-silent watch mode with a grace countdown and automatic claim. |
-| `f674874` | fix 4.4 | The event cache moved behind a box and `nextScanStart()`, so Vercel's file tracer no longer folds BigInt math on a null binding (a build fix). The mainnet contract was deployed from this source. |
+| `f674874` | fix 4.4 | The event cache moved behind a box and `nextScanStart()`, so Vercel's file tracer no longer folds BigInt math on a null binding (a build fix). |
 | `34b3bb1` | assets (media sync, not a Studio turn) | 11 media files synced to `docs/assets` (media, not code). |
 | `d973d46` | turn p41-5a | Server hardening: cron rotation, an empty-pool settle body, the 20/hour and 80/day limits with a wallet floor, idempotent `sendTx`, sweep priority and caps, paged event scans. |
 | `5d1bd77` | turn p41-5b (part 1) | Client fixes, the "Arc mainnet" label from config, a no-wrap stamp amount with an ink texture, the hero proof fallback, and a jobs table that falls back to chain reads. |
 | `181b718` | turn p41-5c | The client pass finished: accept-cancel retry, paged log scan with a concurrency cap, retry and backoff, a page cache, and 73 Bun tests at that commit. |
 | `d153c47` | turn p41-4b | The landing page at `/` and the app at `/app` (a path switch plus a Vercel rewrite), the live stamp hero, and the mainnet proof block from `src/lib/proof.ts`. |
 
-Arc Studio deploys to testnet only. The mainnet contract was deployed with `forge create` on the unchanged Studio source (commit `f674874`), not by Studio.
+Mainnet was deployed with `forge create`, not by Studio: see the deploy note at the top of this page.
 
 ## Run it
 

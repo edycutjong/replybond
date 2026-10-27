@@ -21,7 +21,7 @@ export interface HeroCard {
  * First screen: the counterfoil of the latest real settled timeout of our provider, with the settle button beside it.
  * Clicking replaces the card with the visitor's own new receipt; the stamp lands only if classifyReceipt says PAID.
  */
-export function Hero({ settle, initial, loading, demoBuyer, now, stacked = false, extraAction }: { settle: SettleNow; initial: HeroCard | null; loading: boolean; demoBuyer?: string; now: number; stacked?: boolean; extraAction?: ReactNode }) {
+export function Hero({ settle, initial, loading, demoBuyer, now, stacked = false, extraAction, caption, subline = 'Refund + penalty lands in seconds.' }: { settle: SettleNow; initial: HeroCard | null; loading: boolean; demoBuyer?: string; now: number; stacked?: boolean; extraAction?: ReactNode; caption?: ReactNode; subline?: string }) {
   const { state, run } = settle
   const running = state.phase === 'running'
   const own = state.phase === 'settled' ? state.card : null
@@ -58,6 +58,7 @@ export function Hero({ settle, initial, loading, demoBuyer, now, stacked = false
               </div>
             </div>
           )}
+          {caption && shown && <p className="mt-2 text-[15px]" style={{ color: 'var(--muted-strong)' }}>{caption}</p>}
         </div>
         <div className={stacked ? '' : 'order-1 lg:order-2'}>
           {!stacked && <h3 className="panel-title hidden sm:block" style={{ fontSize: 24 }}>When the API stays silent, the buyer is compensated.</h3>}
@@ -67,8 +68,8 @@ export function Hero({ settle, initial, loading, demoBuyer, now, stacked = false
             </button>
             {extraAction}
           </div>
-          <p className="mt-1 sm:mt-2 text-[15px]">Refund + penalty lands in seconds.</p>
-          <p className="mt-1 text-[15px]" style={{ color: 'var(--muted)' }}>
+          <p className="mt-1 sm:mt-2 text-[15px]">{subline}</p>
+          <p className="mt-1 text-[15px]" style={{ color: 'var(--muted-strong)' }}>
             {PAYOUT_NOTE}
             {demoBuyer ? (
               <>

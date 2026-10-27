@@ -138,7 +138,7 @@ export function Counterfoil(p: CounterfoilProps) {
       </div>
       <div className="p-4 grid gap-3 min-w-0">
         <div style={{ borderBottom: '1px solid var(--rule)', paddingBottom: 4 }}>
-          <div className="label">
+          <div className="label status-line">
             Registered job · provider bonded {p.status !== null && <span style={{ color: 'var(--ink)' }}>· {STATUS_NAMES[p.status]}</span>}
           </div>
           {p.onRecordAt !== undefined && (

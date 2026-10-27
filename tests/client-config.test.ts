@@ -55,3 +55,37 @@ test('routeFor: / and unknown paths are the landing page, /app and below are the
   for (const p of ['/app', '/app/', '/app/anything', '/app/a/b']) assert.equal(routeFor(p), 'app', p)
   for (const p of ['/', '', '/application', '/apps', '/other', '/api/sweep']) assert.equal(routeFor(p), 'landing', p)
 })
+
+test('proofSteps: every step carries its result, with figures taken from the job terms', async () => {
+  const { MAINNET_PROOF, proofSteps } = await import('../src/lib/proof')
+  const { BOND, PRICE } = await import('../src/lib/terms')
+  const fmt = (raw: bigint) => `<${raw}>`
+  const steps = proofSteps(fmt)
+  assert.deepEqual(steps.map((s) => s.name), ['postOffer', 'acceptOffer', 'respond', 'acknowledge', 'timeout', 'claim'])
+  for (const s of steps) assert.equal(s.hash, MAINNET_PROOF.txs[s.name])
+  const total = fmt(PRICE + BOND)
+  assert.deepEqual(steps.map((s) => s.result), [
+    `provider posts a ${fmt(BOND)} bond`,
+    `buyer pays ${fmt(PRICE)}`,
+    'answer written onchain',
+    `provider paid ${total}`,
+    `buyer +${total}`,
+    `provider +${total}, buyer silent`,
+  ])
+  // with the page's real formatter the demo figures read 0.005, 0.010 and 0.015
+  const real = proofSteps((raw) => (Number(raw) / 1e18).toFixed(3))
+  assert.deepEqual(real.map((s) => s.result), ['provider posts a 0.005 bond', 'buyer pays 0.010', 'answer written onchain', 'provider paid 0.015', 'buyer +0.015', 'provider +0.015, buyer silent'])
+})
+
+test('heroCaption: pinned proof says so with its job, a live run points at the proof set', async () => {
+  const { MAINNET_PROOF, heroCaption } = await import('../src/lib/proof')
+  const pinned = MAINNET_PROOF.txs.timeout
+  assert.equal(heroCaption({ shownTx: pinned, pinnedTx: pinned, jobId: '6', proofCount: 6 }), 'This is the pinned proof settlement (job 6).')
+  assert.equal(heroCaption({ shownTx: pinned.toUpperCase().replace('0X', '0x'), pinnedTx: pinned, jobId: '6', proofCount: 6 }), 'This is the pinned proof settlement (job 6).')
+  assert.equal(
+    heroCaption({ shownTx: `0x${'ab'.repeat(32)}`, pinnedTx: pinned, jobId: '9', proofCount: 6 }),
+    'Latest live run shown above. The fixed six-transaction proof set is further down.',
+  )
+  assert.equal(heroCaption({ shownTx: `0x${'ab'.repeat(32)}`, pinnedTx: null, jobId: '9', proofCount: null }), 'Latest live run shown above.')
+  assert.equal(heroCaption({ shownTx: null, pinnedTx: pinned, jobId: null, proofCount: 6 }), null)
+})

@@ -8,6 +8,7 @@
   --card: #f8fafc; /* counterfoil card face */
   --ink: #1a2238; /* franking ink */
   --muted: #5d6678; /* form labels */
+  --muted-strong: #475063; /* small labels and captions on the card face: one step darker, about 7.6:1 */
   --before: #2d52a0; /* state: paid, clock running */
   --after: #c2361f; /* state: deadline missed, compensation paid */
   --rule: #b8c3d3; /* ruled boxes, perforation */
@@ -40,6 +41,28 @@ body {
   text-transform: uppercase;
   color: var(--muted);
   font-weight: 400;
+}
+/* Labels inside a counterfoil, and the hero's grey sentences, one step darker for contrast. */
+.counterfoil .label {
+  color: var(--muted-strong);
+  font-size: max(12px, 13px);
+}
+/* A long label line breaks into even lines instead of leaving one word alone. */
+.landing-section {
+  scroll-margin-top: 16px;
+}
+.status-line {
+  text-wrap: balance;
+}
+/* The full contract address: one line that scrolls inside its own box, never wraps mid-string. */
+.addrbox {
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 8px 12px;
+  font-size: 14px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  user-select: all;
 }
 .panel-title {
   font-family: var(--font-display);
