@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { REPLAY_START_DELAY_MS, clockRunMs, finalReplayState, replayEndMs, replayState } from '@/lib/landingModel'
+import { REPLAY_START_DELAY_MS, REPLAY_TICK_MS, clockRunMs, finalReplayState, replayEndMs, replayState } from '@/lib/landingModel'
 import type { ReplayMode, ReplayState } from '@/lib/landingModel'
 
 const QUERY = '(prefers-reduced-motion: reduce)'
@@ -20,19 +20,22 @@ export const useReducedMotion = (): boolean =>
 export function useReplay({ cardKey, windowS, mode, active }: { cardKey: string; windowS: number; mode: ReplayMode; active: boolean }): { state: ReplayState; replay: () => void } {
   const reduced = useReducedMotion()
   const [run, setRun] = useState<{ key: string; elapsed: number }>({ key: '', elapsed: -1 })
-  const raf = useRef(0)
+  const timer = useRef(0)
   const offset = mode === 'live' ? clockRunMs(windowS) : 0
 
+  // One update per clock step (about 15 a second at the replay speed), not one per frame: the clock text changes only
+  // that often, and the bar between steps is smoothed by a CSS transition.
   const begin = useCallback(() => {
-    cancelAnimationFrame(raf.current)
+    window.clearInterval(timer.current)
     const t0 = performance.now()
     const end = replayEndMs(windowS) + 100
-    const tick = (ts: number) => {
-      const elapsed = ts - t0 + offset
+    const tick = () => {
+      const elapsed = performance.now() - t0 + offset
       setRun({ key: cardKey, elapsed })
-      if (elapsed < end) raf.current = requestAnimationFrame(tick)
+      if (elapsed >= end) window.clearInterval(timer.current)
     }
-    raf.current = requestAnimationFrame(tick)
+    tick()
+    timer.current = window.setInterval(tick, REPLAY_TICK_MS)
   }, [cardKey, windowS, offset])
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export function useReplay({ cardKey, windowS, mode, active }: { cardKey: string;
     const id = window.setTimeout(begin, mode === 'live' ? 0 : REPLAY_START_DELAY_MS)
     return () => {
       window.clearTimeout(id)
-      cancelAnimationFrame(raf.current)
+      window.clearInterval(timer.current)
     }
   }, [active, reduced, mode, begin])
 

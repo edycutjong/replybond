@@ -3,7 +3,7 @@ import type { HeroCard } from '@/components/Hero'
 import { useReplay } from '@/hooks/useReplay'
 import { TapeText } from './Glyphs'
 import { NETWORK_NAME, fmtUsdc, padId, shortHash, txUrl } from '@/lib/appConfig'
-import { chipText, replayCaption, shortTx, shouldStamp, tapeFor } from '@/lib/landingModel'
+import { chipText, replayCaption, shortTx, shouldStamp, stubPendingLabel, tapeFor } from '@/lib/landingModel'
 import type { ReplayMode } from '@/lib/landingModel'
 import { RESPONSE_WINDOW_S } from '@/lib/terms'
 
@@ -27,6 +27,7 @@ export function LandingFoil({ card, loading, mode }: { card: HeroCard | null; lo
     stampOn && card.price !== null && card.bond !== null && card.price + card.bond === amount
       ? `${fmtUsdc(card.price)} refund + ${fmtUsdc(card.bond)} penalty, from the job terms`
       : ''
+  const stubLabel = stubPendingLabel({ hasCard: !!card, stamped: stampOn, done: state.done, kind: c?.kind })
   const inkNote = state.done && c && !unavailable ? (c.kind === 'OWED' ? 'SETTLED · PAYOUT OWED' : c.kind === 'UNREADABLE' ? 'transfer not confirmed' : null) : null
 
   let stateText = 'awaiting the chain'
@@ -41,7 +42,8 @@ export function LandingFoil({ card, loading, mode }: { card: HeroCard | null; lo
           <span className="lp-cap">Job Nº</span>
           <strong>{card ? padId(card.jobId) : '····'}</strong>
           <span className="lp-cap">Buyer stub</span>
-          <strong className="lp-got">{!card ? '—' : stampOn ? `+${amountText}` : `+${fmtUsdc(0n)}`}</strong>
+          <strong className="lp-got">{stampOn ? `+${amountText}` : '—'}</strong>
+          {stubLabel && <span className="lp-cap lp-pending">{stubLabel}</span>}
         </div>
         <div className="lp-face">
           <div className="lp-top">

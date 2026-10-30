@@ -12,7 +12,7 @@ import { NETWORK_NAME } from '@/lib/appConfig'
 
 /** A number that counts up the first time it is seen, but only if it starts below the fold: a visible number never resets. */
 function Count({ stat }: { stat: ReceiptStat }) {
-  const ref = useRef<HTMLElement>(null)
+  const ref = useRef<HTMLSpanElement>(null)
   const reduced = useReducedMotion()
   const final = stat.value.toFixed(stat.decimals)
   useEffect(() => {
@@ -41,7 +41,12 @@ function Count({ stat }: { stat: ReceiptStat }) {
       el.textContent = final
     }
   }, [stat.value, stat.decimals, reduced, final])
-  return <b ref={ref} className={stat.red ? 'lp-red' : undefined}>{final}</b>
+  // Assistive tech reads the final value; the digits that animate are hidden from it.
+  return (
+    <b role="img" aria-label={final} className={stat.red ? 'lp-red' : undefined}>
+      <span ref={ref} aria-hidden="true">{final}</span>
+    </b>
+  )
 }
 
 /** Four receipts: every number comes from the job terms, the proof config or the test counts. */
@@ -163,8 +168,8 @@ export function Faq() {
   return (
     <Band id="faq" docket="Enquiries" title="Questions a judge would ask" className="lp-faq">
       <div>
-        {items.map((it) => (
-          <details key={it.q}>
+        {items.map((it, i) => (
+          <details key={it.q} open={i === 0}>
             <summary>{it.q}</summary>
             <p>{it.a}</p>
           </details>

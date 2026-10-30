@@ -23,10 +23,22 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- The two faces used above the fold start downloading with the page (the files named by the stylesheet below at the time of writing). -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/antonio/v22/gNMEW3NwSYq_9WD3yHQiFaWw9MM.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="https://fonts.gstatic.com/s/librefranklin/v20/jizDREVItHgc8qDIbSTKq4XkRiUf2zcZiVbJ.woff2" />
+    <!-- The font stylesheet does not block rendering: it is fetched as a preload and applied on load, with local fallback faces in the app CSS sized to match. -->
     <link
+      rel="preload"
+      as="style"
       href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&family=Azeret+Mono:wght@400;600&family=Libre+Franklin:wght@400;600&display=swap"
-      rel="stylesheet"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;600;700&family=Azeret+Mono:wght@400;600&family=Libre+Franklin:wght@400;600&display=swap"
+      />
+    </noscript>
   </head>
   <body>
     <!-- Built with Arc Studio — https://studio.arc.io -->

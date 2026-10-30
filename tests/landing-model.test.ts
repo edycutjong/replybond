@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
   HONEST_QUOTES, REPLAY_SPEED, TAPE_FIRST_MS, TAPE_STEP_MS, chipText, clockRunMs, clockText, endingsStrip, faqItems, finalReplayState,
-  receiptStats, replayCaption, replayEndMs, replayState, shortTx, shouldStamp, tapeFor,
+  receiptStats, replayCaption, replayEndMs, replayState, shortTx, shouldStamp, stubPendingLabel, tapeFor,
 } from '../src/lib/landingModel'
 import { MAINNET_PROOF, TEST_COUNTS, proofSteps } from '../src/lib/proof'
 import { BOND, DEMO_OFFER_LIMITS, GRACE_WINDOW_S, MIN_WALLET_BALANCE_NATIVE, PRICE } from '../src/lib/terms'
@@ -85,6 +85,16 @@ describe('stamp rule', () => {
   })
 })
 
+describe('buyer stub label', () => {
+  it('says pending until the payout is confirmed, and why not if it never is', () => {
+    assert.equal(stubPendingLabel({ hasCard: false, stamped: false, done: false, kind: undefined }), '')
+    assert.equal(stubPendingLabel({ hasCard: true, stamped: false, done: false, kind: 'PAID' }), 'pending')
+    assert.equal(stubPendingLabel({ hasCard: true, stamped: true, done: true, kind: 'PAID' }), '')
+    assert.equal(stubPendingLabel({ hasCard: true, stamped: false, done: true, kind: 'OWED' }), 'owed')
+    assert.equal(stubPendingLabel({ hasCard: true, stamped: false, done: true, kind: 'UNREADABLE' }), 'not confirmed')
+  })
+})
+
 describe('captions, chip and tape', () => {
   it('labels a replay with its speed-up and the real window', () => {
     assert.equal(chipText('replay'), 'Replay · sped up ×15')
@@ -142,6 +152,7 @@ describe('receipts, honest quotes and faq', () => {
     assert.equal(c!.value, TEST_COUNTS.forge)
     assert.equal(d!.value, TEST_COUNTS.bun)
     assert.ok(c!.label.includes(String(TEST_COUNTS.invariants.runs)))
+    assert.equal(c!.label, 'forge tests pass (pinned forge 1.7.1), including 3 invariants at 256 runs')
     assert.ok(d!.label.includes(String(TEST_COUNTS.bunFiles)))
   })
   it('takes the FAQ figures from the terms and limits', () => {
@@ -168,5 +179,8 @@ describe('test counts', () => {
     assert.ok(line.includes(`${TEST_COUNTS.forge} passed`), line)
     assert.ok(line.includes(`${TEST_COUNTS.bun} passed`), line)
     assert.ok(line.includes(`(${TEST_COUNTS.bunFiles} files)`), line)
+    assert.ok(line.includes('pinned forge 1.7.1 (`.foundry-version`)'), line)
+    assert.ok(line.includes('forge 1.8 runs the 3 invariants as one campaign and prints 64 passed'), line)
+    assert.equal(readFileSync(new URL('../.foundry-version', import.meta.url), 'utf8').trim(), 'v1.7.1')
   })
 })

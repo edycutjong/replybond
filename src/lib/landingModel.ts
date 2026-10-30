@@ -6,6 +6,8 @@ import { BOND, DEMO_OFFER_LIMITS, GRACE_WINDOW_S, MIN_WALLET_BALANCE_NATIVE, PRI
 export const REPLAY_SPEED = 15
 /** The replay starts at most this long after the card is ready. */
 export const REPLAY_START_DELAY_MS = 300
+/** How often the replay updates its state: about one clock step at the replay speed. */
+export const REPLAY_TICK_MS = 66
 export const TAPE_FIRST_MS = 520
 export const TAPE_STEP_MS = 380
 export const TAPE_LINE_COUNT = 3
@@ -57,6 +59,13 @@ export const replayEndMs = (windowS: number, speed = REPLAY_SPEED) => clockRunMs
 
 /** The red stamp (and the stub tear) happen only for a timeout whose payout classifyReceipt confirmed as PAID. */
 export const shouldStamp = (c: { kind: string; event: string | null } | undefined | null): boolean => !!c && c.kind === 'PAID' && c.event === 'JobTimedOut'
+
+/** The small label under the buyer stub's amount until the payout is confirmed: '' once it is (or with no card). */
+export function stubPendingLabel(o: { hasCard: boolean; stamped: boolean; done: boolean; kind: string | undefined }): string {
+  if (!o.hasCard || o.stamped) return ''
+  if (!o.done) return 'pending'
+  return o.kind === 'OWED' ? 'owed' : 'not confirmed'
+}
 
 export type ReplayMode = 'replay' | 'live'
 
@@ -123,7 +132,7 @@ export function receiptStats(fmt: (raw: bigint) => string): ReceiptStat[] {
   return [
     { value: Number(total), decimals: total.split('.')[1]?.length ?? 0, label: 'USDC back to the buyer per missed deadline', source: 'src/lib/terms.ts · price + bond', red: true },
     { value: Object.keys(MAINNET_PROOF.txs).length, decimals: 0, label: 'mainnet transactions, every one status 1', source: 'src/lib/proof.ts' },
-    { value: TEST_COUNTS.forge, decimals: 0, label: `forge tests pass, including ${inv.count} invariants (each ${inv.runs} runs, ${inv.calls.toLocaleString('en-US')} calls)`, source: 'README · Tests' },
+    { value: TEST_COUNTS.forge, decimals: 0, label: `forge tests pass (pinned forge 1.7.1), including ${inv.count} invariants at ${inv.runs} runs`, source: 'README · Tests' },
     { value: TEST_COUNTS.bun, decimals: 0, label: `bun tests across ${TEST_COUNTS.bunFiles} files`, source: 'README · Tests' },
   ]
 }

@@ -1,4 +1,5 @@
 import type { MouseEvent, ReactNode } from 'react'
+import { loadAppRoute } from '@/lib/appLoader'
 import { navigate } from '@/lib/route'
 
 /** A real link (so it works with a new tab and without script) that navigates in place on a plain click. */
@@ -8,8 +9,10 @@ export function NavLink({ to, className, children }: { to: string; className?: s
     e.preventDefault()
     navigate(to)
   }
+  // Hovering or focusing a link to the app starts downloading it.
+  const warm = to.startsWith('/app') ? () => void loadAppRoute() : undefined
   return (
-    <a href={to} className={className} onClick={onClick}>
+    <a href={to} className={className} onClick={onClick} onPointerEnter={warm} onFocus={warm}>
       {children}
     </a>
   )

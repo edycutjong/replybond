@@ -2,6 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Local fallback faces, sized to the web fonts' metrics, so the swap to Antonio, Libre Franklin and Azeret Mono does not move the layout. */
+@font-face {
+  font-family: 'Antonio Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'), local('Arimo Bold'), local('Helvetica Bold');
+  font-weight: 400 700;
+  size-adjust: 69%;
+  ascent-override: 166%;
+  descent-override: 20%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Libre Franklin Fallback';
+  src: local('Arial'), local('Liberation Sans'), local('Arimo'), local('Helvetica');
+  font-weight: 100 500;
+  size-adjust: 103%;
+  ascent-override: 94%;
+  descent-override: 24%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Libre Franklin Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'), local('Arimo Bold'), local('Helvetica Bold');
+  font-weight: 600 900;
+  size-adjust: 99%;
+  ascent-override: 98%;
+  descent-override: 25%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Azeret Mono Fallback';
+  src: local('Courier New'), local('CourierNewPSMT'), local('Liberation Mono'), local('Cousine'), local('Menlo');
+  font-weight: 100 500;
+  size-adjust: 108%;
+  ascent-override: 87%;
+  descent-override: 21%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Azeret Mono Fallback';
+  src: local('Courier New Bold'), local('CourierNewPS-BoldMT'), local('Liberation Mono Bold'), local('Cousine Bold'), local('Menlo Bold');
+  font-weight: 600 900;
+  size-adjust: 108%;
+  ascent-override: 87%;
+  descent-override: 21%;
+  line-gap-override: 0%;
+}
+
 :root {
   --ink-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='11'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='1 1 0.95 0.92'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   --bg: #e4ebf4; /* form stock */
@@ -12,9 +59,9 @@
   --before: #2d52a0; /* state: paid, clock running */
   --after: #c2361f; /* state: deadline missed, compensation paid */
   --rule: #b8c3d3; /* ruled boxes, perforation */
-  --font-display: 'Antonio', 'Oswald', 'Arial Narrow', sans-serif;
-  --font-body: 'Libre Franklin', 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif;
-  --font-data: 'Azeret Mono', 'SFMono-Regular', Menlo, monospace;
+  --font-display: 'Antonio', 'Antonio Fallback', 'Oswald', 'Arial Narrow', sans-serif;
+  --font-body: 'Libre Franklin', 'Libre Franklin Fallback', 'Franklin Gothic Medium', 'Helvetica Neue', Arial, sans-serif;
+  --font-data: 'Azeret Mono', 'Azeret Mono Fallback', 'SFMono-Regular', Menlo, monospace;
 }
 
 * {
@@ -397,7 +444,7 @@ table.jobs td {
 .lp-sub b{font:600 .9em var(--font-data);white-space:nowrap}
 .lp-ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px;align-items:center}
 .lp-fine{font-size:14px;color:var(--muted);margin-top:14px;max-width:36em}
-.lp-foil{position:relative;display:grid;grid-template-columns:118px 1fr;transform:rotate(-1.2deg);filter:drop-shadow(0 28px 34px rgba(26,34,56,.22))}
+.lp-foil{position:relative;display:grid;grid-template-columns:118px 1fr;transform:rotate(-1.2deg)}
 .lp-stub,.lp-face{background:var(--card);border:1px solid var(--rule)}
 .lp-stub{padding:22px 16px;border-right:0;position:relative;transition:transform .7s var(--land)}
 .lp-stub::after{content:"";position:absolute;right:-2px;top:10px;bottom:10px;border-right:3px dotted var(--rule)}
@@ -412,10 +459,10 @@ table.jobs td {
 .lp-box{border:1px solid var(--rule);padding:8px 12px;min-width:112px}
 .lp-box b{display:block;font:600 24px/1.2 var(--font-data);color:var(--before)}
 .lp-clock{font:700 172px/.86 var(--font-display);color:var(--before);font-variant-numeric:tabular-nums;margin-top:12px;transition:opacity .4s}
-.lp-foil.lp-paid .lp-clock{opacity:.12}
+.lp-foil.lp-paid .lp-clock{opacity:.1}
 .lp-bar{height:4px;background:var(--rule);margin-top:12px}
 .lp-bar i{display:block;height:100%;background:var(--before);transform-origin:left}
-.lp-stamp{position:absolute;left:50%;top:47%;translate:-50% -50%;max-width:94%;font:700 54px/1 var(--font-display);letter-spacing:.04em;text-transform:uppercase;color:var(--after);border:5px solid var(--after);outline:2px solid var(--after);outline-offset:4px;padding:10px 20px 8px;opacity:0;transform:rotate(-6deg) scale(2.3);mix-blend-mode:multiply;pointer-events:none;white-space:nowrap}
+.lp-stamp{position:absolute;left:50%;top:47%;translate:-50% -50%;max-width:94%;font:700 54px/1 var(--font-display);letter-spacing:.04em;text-transform:uppercase;color:var(--after);border:5px solid var(--after);outline:2px solid var(--after);outline-offset:4px;padding:10px 20px 8px;opacity:0;transform:rotate(-6deg) scale(2.3);pointer-events:none;white-space:nowrap}
 .lp-stamp small{display:block;font:600 22px/1.2 var(--font-data);letter-spacing:0}
 .lp-foil.lp-paid .lp-stamp{animation:lp-slam .42s var(--land) forwards}
 .lp-foil.lp-paid .lp-face{animation:lp-hit .4s ease-out}
@@ -558,3 +605,51 @@ table.jobs td {
 .lp-faq summary{min-height:44px;align-items:center}
 .lp-lr a{display:inline-flex;align-items:center;min-height:44px;margin:-12px 0}
 .lp-contract a,.lp-more a{display:inline-flex;align-items:center;min-height:44px}
+
+/* Hero polish: stub pending label, nav mark feedback, centred columns, reserved sizes. */
+.lp-pending{display:block;margin-top:-14px}
+.lp-mark:hover{color:var(--before)}
+.lp-mark:focus-visible{outline:3px solid var(--before);outline-offset:3px}
+.lp-rc b{display:block;min-width:5ch;font-variant-numeric:tabular-nums}
+@media (min-width:981px){.lp-lead,.lp-card{align-self:center}}
+/* The settle note sits right after the buttons when the lead is flattened into the column order. */
+@media (max-width:980px){.lp-lead .lp-note{order:5}}
+/* Phone: eyebrow, H1, the card, then the buttons, then the subhead and the fine print; the card is compact so the buttons are on the first screen. */
+@media (max-width:640px){
+  .lp-lead .lp-ctas{order:4}
+  .lp-lead .lp-note{order:4}
+  .lp-lead .lp-sub{order:5}
+  .lp-lead .lp-fine{order:6}
+  .lp-card{margin-bottom:18px}
+  .lp-face{padding:12px 12px 14px}
+  .lp-row{margin:10px 0 0}
+  .lp-box b{font-size:17px}
+  .lp-clock{font-size:84px;margin-top:6px}
+  .lp-bar{margin-top:8px}
+  .lp-split{font-size:13px;margin-top:4px;min-height:1.4em}
+  .lp-tape{font-size:12px;line-height:1.6;min-height:4.9em;margin-top:6px;padding-top:6px}
+  .lp-under{flex-direction:row;align-items:center;margin-top:10px;font-size:13px;gap:10px}
+  .lp-replay{padding:10px 12px}
+}
+/* Reserved sizes: the card is as tall before its data arrives as after, so nothing below it moves. */
+.lp-top{min-height:28px}
+.lp-split{min-height:1.5em}
+.lp-tape{min-height:6.5em}
+.lp-under{min-height:46px}
+@media (max-width:640px){
+  .lp nav{padding:10px 0}
+  .lp h1{font-size:44px;margin:8px 0 12px}
+  .lp-clock{font-size:72px}
+  .lp-box{padding:6px 10px}
+  .lp-box b{font-size:16px}
+  .lp-top{min-height:26px}
+  .lp-split{min-height:2.7em}
+  .lp-tape{min-height:8.4em}
+  .lp-under{min-height:62px}
+}
+/* Performance: the card's shadow is a plain box-shadow on its two halves (a filter over a transformed grid is costly to paint), and the large decorative texture is left out on phones and tablets. */
+.lp-stub,.lp-face{box-shadow:0 24px 30px -20px rgba(26,34,56,.3)}
+@media (max-width:980px){.lp-tex{display:none}}
+.lp-bar i{will-change:transform;transition:transform 70ms linear}
+/* The texture fades by its own opacity instead of a mask (a mask over a large SVG is costly to paint). */
+.lp-tex svg{-webkit-mask:none;mask:none;opacity:.55}

@@ -10,20 +10,17 @@
  *  https://studio.arc.io
  */
 
-import './tracing'
+import { registerChain } from './tracing'
 import './console-capture'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { WagmiProvider } from 'wagmi'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ConnectKitProvider } from 'connectkit'
-import { Toaster } from 'sonner'
-import { config } from './config'
 import Root from './Root'
+import { appChain } from './lib/appConfig'
 import './index.css'
 
-const queryClient = new QueryClient()
+// Pre-register chain RPC URLs so trace events show correct chain names immediately
+registerChain(appChain.id, appChain.rpcUrls.default.http[0])
 
 // Studio logo SVG
 const StudioLogo = () => (
@@ -68,15 +65,8 @@ const StudioWatermark = () => (
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <ConnectKitProvider>
-          <Root />
-          <StudioWatermark />
-          <Toaster position="top-center" />
-        </ConnectKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <Root />
+    <StudioWatermark />
   </StrictMode>,
 )
 
