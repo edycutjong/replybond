@@ -39,7 +39,7 @@ function JumpToProof({ reduced }: { reduced: boolean }) {
   }
   return (
     <a href="#proof" onClick={onClick} style={{ whiteSpace: 'nowrap' }}>
-      See the {Object.keys(MAINNET_PROOF.txs).length} mainnet transactions <ArrowDown size={14} aria-hidden style={{ display: 'inline', verticalAlign: '-2px' }} />
+      See the {Object.keys(MAINNET_PROOF.txs).length} proof transactions <ArrowDown size={14} aria-hidden style={{ display: 'inline', verticalAlign: '-2px' }} />
     </a>
   )
 }
@@ -71,7 +71,7 @@ export default function Landing() {
         </Suspense>
       )}
       <div className="lp-hero">
-        <HeroTexture ring={`${NETWORK_NAME.toUpperCase()} · CHAIN ${CHAIN_ID} · REGISTERED · INSURED ·`} />
+        <HeroTexture ring={`${NETWORK_NAME.toUpperCase()} · CHAIN ${CHAIN_ID} · REGISTERED · BONDED ·`} />
         <div className="lp-w">
           <LandingNav />
           <div className="lp-hg">

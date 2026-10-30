@@ -131,7 +131,7 @@ export function receiptStats(fmt: (raw: bigint) => string): ReceiptStat[] {
   const inv = TEST_COUNTS.invariants
   return [
     { value: Number(total), decimals: total.split('.')[1]?.length ?? 0, label: 'USDC back to the buyer per missed deadline', source: 'src/lib/terms.ts · price + bond', red: true },
-    { value: Object.keys(MAINNET_PROOF.txs).length, decimals: 0, label: 'mainnet transactions, every one status 1', source: 'src/lib/proof.ts' },
+    { value: Object.keys(MAINNET_PROOF.txs).length, decimals: 0, label: 'mainnet proof transactions, every one status 1', source: 'src/lib/proof.ts' },
     { value: TEST_COUNTS.forge, decimals: 0, label: `forge tests pass (pinned forge 1.7.1), including ${inv.count} invariants at ${inv.runs} runs`, source: 'README · Tests' },
     { value: TEST_COUNTS.bun, decimals: 0, label: `bun tests across ${TEST_COUNTS.bunFiles} files`, source: 'README · Tests' },
   ]
