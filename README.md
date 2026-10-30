@@ -29,7 +29,7 @@
 
 **Tests:** `forge test` with the pinned forge 1.7.1 (`.foundry-version`): 66 passed, 0 failed (63 unit and fuzz tests plus 3 invariants at 256 runs; forge 1.8 runs the 3 invariants as one campaign and prints 64 passed) · `bun test tests/`: 116 passed, 0 failed (16 files)
 
-<p><a href="#mainnet-proof">Mainnet proof</a> · <a href="#how-it-works">How it works</a> · <a href="#how-arc-studio-built-it">How Arc Studio built it</a></p>
+<p><a href="#mainnet-proof">Live deployment</a> · <a href="#how-it-works">Architecture</a> · <a href="#how-arc-studio-built-it">Arc Studio integration</a></p>
 
 </div>
 
@@ -97,7 +97,7 @@ The app and contract were built in [Arc Studio](https://studio.arc.io/app/aaea9a
 | `618cba4` | turns p41-6/7/8 | The judge-facing README, an /app mobile overflow fix, and an on-demand pool refill with the 45 s deadline. |
 | `12d113a` | turn p41-9 | A faster cold scan (paged, with a 45 s budget and a resumable cache) and README and landing text corrections. |
 | `1af8d8c` | turn p41-10 | Landing and README polish: the mainnet-proof jump link, result labels, the hero caption, contrast and address wrapping. |
-| `d2262a4` | turn p43-11 | The landing page redesigned from the approved comp: a replaying counterfoil hero fed by the latest real settlement, the receipts band, the three endings, the mainnet ledger, the Studio turns, FAQ and footer. |
+| `d2262a4` | turn p43-11 | The landing page redesigned: a replaying counterfoil hero fed by the latest real settlement, the receipts band, the three endings, the mainnet ledger, the Studio turns, FAQ and footer. |
 | `a71ba8d` | turn p43-12 | Landing performance: the app and the chain reads load on demand, non-blocking fonts with size-matched fallbacks, a reserved card height, and the pinned forge 1.7.1 counts in the Tests line. |
 | `6e497cd` | turn p43-13 | Landing QA fixes: receipt numerals restored, the clock hidden under the stamp, the phone stamp and stub fitted, and a hover treatment for every link. |
 | `0c238af` | turn p44b-1 | Landing copy fixes: "bonded" instead of "insured" on the ring, and "proof transactions" in the receipts label and the hero link. |
@@ -184,7 +184,7 @@ forge test             # contract tests (bun run contracts:test)
 bun run build          # production build into dist/
 ```
 
-The checks run on every push and pull request in `.github/workflows/ci.yml`; `codeql.yml` and `gitleaks.yml` scan the code and the history.
+`.github/workflows/ci.yml` runs these checks on every push to `main` and on pull requests; `codeql.yml` and `gitleaks.yml` scan the code and the full git history.
 
 ## 🗺️ Roadmap
 
