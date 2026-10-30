@@ -1,21 +1,47 @@
+import { ArrowDown, ArrowRight, ArrowUpRight } from 'lucide-react'
+import type { MouseEvent } from 'react'
 import { useEffect, useMemo, useRef } from 'react'
-import { BuiltWithStudio, HowItWorks, JumpToProof, LimitsAndNext, LiveContract, OpenAppButton } from './components/landing'
-import { Header } from './components/Header'
-import { Hero } from './components/Hero'
+import { NavLink } from './components/NavLink'
+import { LandingFooter, LandingNav } from './components/landing/Chrome'
+import { HeroTexture } from './components/landing/Glyphs'
+import { LandingFoil } from './components/landing/LandingFoil'
+import { Proof } from './components/landing/Proof'
+import { Endings, Faq, Honest, Receipts, Studio } from './components/landing/Sections'
 import { useChainIdentity } from './hooks/useChainIdentity'
 import { useHeroCard } from './hooks/useHeroCard'
 import { useJobs, useTick } from './hooks/useJobs'
+import { useReducedMotion } from './hooks/useReplay'
 import { useSettleNow } from './hooks/useSettleNow'
 import { useSettlements } from './hooks/useSettlements'
 import { Status } from './lib/abi'
-import { CHAIN_ID, NETWORK_NAME, PROOF_TIMEOUT_TX } from './lib/appConfig'
-import { MAINNET_PROOF, heroCaption } from './lib/proof'
+import { CHAIN_ID, NETWORK_NAME, addressUrl, fmtUsdc, shortHash } from './lib/appConfig'
+import { shortTx, tapeFor } from './lib/landingModel'
+import { MAINNET_PROOF } from './lib/proof'
+import { BOND, PRICE, RESPONSE_WINDOW_S } from './lib/terms'
 
-/** `/`: the problem, a live stamp hero from the same receipt path as the app, how it works, the proof, the limits. */
+/** Scrolls to the proof section; instant when the visitor prefers reduced motion. */
+function JumpToProof({ reduced }: { reduced: boolean }) {
+  if (CHAIN_ID !== MAINNET_PROOF.chainId) return null
+  const onClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    const target = document.getElementById('proof')
+    if (!target) return
+    e.preventDefault()
+    target.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })
+    window.history.replaceState(null, '', '#proof')
+  }
+  return (
+    <a href="#proof" onClick={onClick} style={{ whiteSpace: 'nowrap' }}>
+      See the {Object.keys(MAINNET_PROOF.txs).length} mainnet transactions <ArrowDown size={14} aria-hidden style={{ display: 'inline', verticalAlign: '-2px' }} />
+    </a>
+  )
+}
+
+/** `/`: the replay card of the latest real settled timeout, the receipts, the endings, the mainnet proof, the limits. */
 export default function Landing() {
   const { jobs, loading, scanning, refresh, chainNow } = useJobs()
   useTick()
   const now = chainNow()
+  const reduced = useReducedMotion()
   const identity = useChainIdentity()
   const settlements = useSettlements(refresh)
   const settle = useSettleNow(refresh, chainNow)
@@ -38,47 +64,75 @@ export default function Landing() {
 
   const { initial, heroLoading } = useHeroCard({ ours, settlements, loading, scanning, waitingOnSweep: identity.waiting })
 
-  // Says whether the card is the pinned proof or a live run, and where the fixed proof set is.
-  const caption = heroCaption({
-    shownTx: initial?.settlement.txHash ?? null,
-    pinnedTx: PROOF_TIMEOUT_TX,
-    jobId: initial?.jobId ?? null,
-    proofCount: CHAIN_ID === MAINNET_PROOF.chainId ? Object.keys(MAINNET_PROOF.txs).length : null,
-  })
+  const { state, run } = settle
+  const own = state.phase === 'settled' ? state.card : null
+  const notreadyCard = state.phase === 'notready' ? state.card : null
+  const card = own ?? initial ?? notreadyCard
+  const running = state.phase === 'running'
+  const left = state.phase === 'notready' && state.nextReadyInSeconds !== null ? Math.max(0, Math.ceil(state.nextReadyInSeconds - (now - state.at))) : null
 
+  // The real tape for the "timeout" tile when this deployment has no mainnet proof set: the card on screen.
+  const c = card?.settlement.classification
+  const liveTape = card && c?.kind === 'PAID' && c.event === 'JobTimedOut' && c.amount !== null && c.payee
+    ? tapeFor({ jobId: card.jobId, amount: fmtUsdc(c.amount), payeeShort: shortHash(c.payee), hash: card.settlement.txHash, hashShort: shortTx(card.settlement.txHash) })
+    : null
+
+  const total = fmtUsdc(PRICE + BOND)
   return (
-    <main className="mx-auto max-w-[1100px] px-4 pb-28">
-      <Header variant="landing" />
-      <section aria-labelledby="problem" className="mt-6 sm:mt-8 max-w-[860px]">
-        <h2 id="problem" style={{ fontFamily: 'var(--font-display)', fontWeight: 600, letterSpacing: '0.01em', fontSize: 'clamp(24px, 4.4vw, 38px)', lineHeight: 1.12 }}>
-          When you pay an API and it never answers, you lose the money and the time, and nobody pays you back.
-        </h2>
-        <p className="mt-3 text-[17px] sm:text-[19px]">
-          ReplyBond holds the provider's bond. A missed deadline pays the buyer back plus a penalty, on Arc, in USDC.
-        </p>
-      </section>
-      <div className="mt-5">
-        <Hero
-          settle={settle}
-          initial={initial}
-          loading={heroLoading}
-          demoBuyer={identity.demoBuyer ?? undefined}
-          now={now}
-          stacked
-          extraAction={
-            <>
-              <OpenAppButton />
-              <JumpToProof />
-            </>
-          }
-          caption={caption}
-          subline={`Sends a real settlement on ${NETWORK_NAME}. Refund + penalty lands in seconds.`}
-        />
+    <div className="lp">
+      <div className="lp-hero">
+        <HeroTexture ring={`${NETWORK_NAME.toUpperCase()} · CHAIN ${CHAIN_ID} · REGISTERED · INSURED ·`} />
+        <div className="lp-w">
+          <LandingNav />
+          <div className="lp-hg">
+            <div className="lp-lead">
+              <p className="lp-cap lp-eyebrow lp-st">Registered API calls · bonded against silence</p>
+              <h1 className="lp-st lp-d1">An API that ghosts you <em>pays you back.</em></h1>
+              <p className="lp-sub lp-st lp-d2">
+                Pay <b>{fmtUsdc(PRICE)}</b> USDC for one call; the provider bonds <b>{fmtUsdc(BOND)}</b> USDC. No answer inside <strong>{RESPONSE_WINDOW_S} seconds</strong>, and anyone can settle it: the contract sends <b>+{total}</b> USDC back to the buyer, on {NETWORK_NAME}.
+              </p>
+              <div className="lp-ctas lp-st lp-d3">
+                <button className="lp-btn lp-pri" type="button" onClick={() => void run()} disabled={running}>
+                  {running ? 'Settling …' : 'Settle a missed deadline now'}
+                </button>
+                <NavLink to="/app#miss-title" className="lp-btn">
+                  Watch a live {RESPONSE_WINDOW_S} s run <ArrowRight size={16} aria-hidden />
+                </NavLink>
+              </div>
+              {state.phase === 'notready' && (
+                <p className="lp-note" role="status">
+                  {state.message ? state.message : left === null ? 'No pooled job yet. A refill is on its way.' : left > 0 ? `No pooled job is past its deadline yet. Next one ready in ${left} s.` : 'The next one is ready. Press again.'} The card shows the latest real settled receipt.
+                </p>
+              )}
+              {state.phase === 'error' && (
+                <p className="lp-note lp-bad" role="alert">
+                  {state.message} <button className="lp-linkbtn" type="button" onClick={() => void run()}>Try again</button>
+                </p>
+              )}
+              <p className="lp-fine lp-st lp-d4">
+                Settle sends a real timeout on {NETWORK_NAME}; the payout goes to our demo-buyer address, not to you.
+                {identity.demoBuyer && (
+                  <>
+                    {' '}
+                    <a className="lp-data" href={addressUrl(identity.demoBuyer)} target="_blank" rel="noopener noreferrer" title={identity.demoBuyer}>
+                      {shortHash(identity.demoBuyer)} <ArrowUpRight size={12} aria-hidden style={{ display: 'inline', verticalAlign: '-1px' }} />
+                    </a>
+                  </>
+                )}{' '}
+                <JumpToProof reduced={reduced} />
+              </p>
+            </div>
+            <LandingFoil card={card} loading={heroLoading} mode={own ? 'live' : 'replay'} />
+          </div>
+          <Receipts />
+        </div>
       </div>
-      <HowItWorks />
-      <LiveContract />
-      <BuiltWithStudio />
-      <LimitsAndNext />
-    </main>
+      <Endings liveTape={liveTape} />
+      <Proof />
+      <Studio />
+      <Honest />
+      <Faq />
+      <LandingFooter />
+    </div>
   )
 }

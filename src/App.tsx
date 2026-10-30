@@ -47,6 +47,12 @@ export default function App() {
   const settlements = useSettlements(refresh, untrack)
   const settle = useSettleNow(refresh, chainNow)
 
+  // A link like /app#miss-title lands on that element once, after the first render.
+  useEffect(() => {
+    const id = decodeURIComponent(window.location.hash.slice(1))
+    if (id) document.getElementById(id)?.scrollIntoView({ block: 'start' })
+  }, [])
+
   // The sweep runs on every load. If it fails (rejects, or answers with a status other than 200) it is tried once more after 5 s.
   const [sweepAttempt, setSweepAttempt] = useState(0)
   useEffect(() => {

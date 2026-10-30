@@ -14,13 +14,13 @@
 
 **Built in Arc Studio:** https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4 (opens with an Arc Studio login)
 
-**Tests:** `forge test`: 66 passed, 0 failed (63 unit and fuzz tests, 3 invariants at 256 runs of 128,000 calls each) · `bun test tests/`: 92 passed, 0 failed (13 files)
+**Tests:** `forge test`: 66 passed, 0 failed (63 unit and fuzz tests, plus 3 invariant tests, each run 256 times with 128,000 calls) · `bun test tests/`: 108 passed, 0 failed (14 files)
 
 <p><a href="#mainnet-proof">Mainnet proof</a> · <a href="#how-it-works">How it works</a> · <a href="#how-arc-studio-built-it">How Arc Studio built it</a></p>
 
 </div>
 
-Mainnet deploy: Arc Studio deploys to testnet only, so the mainnet contract was deployed with `forge create` on the unchanged Studio source (commit `f674874`). Sourcify reports an exact match.
+Mainnet deploy: Arc Studio deploys to testnet only, so the mainnet contract was deployed with `forge create` on the unchanged Studio source (commit `f674874`). `contracts/ReplyBond.sol` has not changed since Studio turn 1 (`cd3e816`); later turns changed the app, the API routes and the docs. Sourcify reports an exact match.
 
 ## Problem
 
@@ -51,7 +51,7 @@ Payouts use a native send capped at 100,000 gas (`PAYOUT_GAS`) that never copies
 
 ## Mainnet proof
 
-One run on Arc mainnet covering all three settlement paths (jobs 5, 6 and 7); every transaction below was sent to the contract above with status 1.
+One run through the live app on Arc mainnet covering all three settlement paths (jobs 5, 6 and 7): the app's `/api` routes sent every transaction below to the contract above, and each has status 1.
 
 | Step | Transaction | Result |
 |---|---|---|
@@ -89,6 +89,9 @@ The app and contract were built in [Arc Studio](https://studio.arc.io/app/aaea9a
 | `5d1bd77` | turn p41-5b (part 1) | Client fixes, the "Arc mainnet" label from config, a no-wrap stamp amount with an ink texture, the hero proof fallback, and a jobs table that falls back to chain reads. |
 | `181b718` | turn p41-5c | The client pass finished: accept-cancel retry, paged log scan with a concurrency cap, retry and backoff, a page cache, and 73 Bun tests at that commit. |
 | `d153c47` | turn p41-4b | The landing page at `/` and the app at `/app` (a path switch plus a Vercel rewrite), the live stamp hero, and the mainnet proof block from `src/lib/proof.ts`. |
+| `618cba4` | turns p41-6/7/8 | The judge-facing README, an /app mobile overflow fix, and an on-demand pool refill with the 45 s deadline. |
+| `12d113a` | turn p41-9 | A faster cold scan (paged, with a 45 s budget and a resumable cache) and README and landing text corrections. |
+| `1af8d8c` | turn p41-10 | Landing and README polish: the mainnet-proof jump link, result labels, the hero caption, contrast and address wrapping. |
 
 Mainnet was deployed with `forge create`, not by Studio: see the deploy note at the top of this page.
 

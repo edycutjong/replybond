@@ -18,6 +18,10 @@ export const MAINNET_PROOF = {
     timeout: '0x7312e5db712a360e5b582e0f0afa0a9b96e4ce228d89036d6fcd5aae26783a77',
     claim: '0x2c008eb8e69a417b781d6da6065b2b98d87cb40d2cfd6b950db0fe1a3fe2de6f',
   },
+  /** The job each ending belongs to (verified onchain): acknowledge pays the provider, timeout pays the buyer, claim pays the provider. */
+  jobs: { acknowledge: 5, timeout: 6, claim: 7 },
+  /** How the timeout's payee reads in the receipt tape (the buyer of job 6), shortened for display. */
+  timeoutPayeeShort: '0xbD95…C8D2',
 } as const
 
 /** The settled timeout (job 6) used as the hero's "On record" fallback on Arc mainnet. */
@@ -79,3 +83,26 @@ export function heroCaption(o: { shownTx: string | null; pinnedTx: string | null
   const n = o.proofCount <= 10 ? WORDS[o.proofCount] : String(o.proofCount)
   return `Latest live run shown above. The fixed ${n}-transaction proof set is further down.`
 }
+
+/** The repository the landing page links to. */
+export const REPO_URL = 'https://github.com/edycutjong/replybond'
+
+/**
+ * Test counts shown on the landing page and in the README Tests line (a test fails if they drift apart).
+ * forge: what `forge test` prints (63 unit and fuzz tests plus 3 invariant tests); each invariant test runs `runs` times with `calls` calls.
+ */
+export const TEST_COUNTS = {
+  forge: 66,
+  bun: 108,
+  bunFiles: 14,
+  invariants: { count: 3, runs: 256, calls: 128_000 },
+} as const
+
+/** Selected Studio turns shown on the landing page, oldest first (the full table is in the README). */
+export const STUDIO_TURNS = [
+  { tag: 'TURN', no: '1', title: 'The contract', blurb: 'ReplyBond, its Foundry tests and a testnet deploy.', commit: 'cd3e816' },
+  { tag: 'TURN', no: '3', title: 'A live timeout', blurb: 'Testnet timeout and claim, with the Transfer logs confirmed.', commit: 'c96cc0f' },
+  { tag: 'TURN', no: '4', title: 'The app', blurb: 'Sweep on load, settle-now, the job table, receipt checks.', commit: '6b1be61' },
+  { tag: 'FIX', no: '4.2', title: 'The stamp', blurb: 'The counterfoil and the INDEMNITY PAID stamp.', commit: '9417730' },
+  { tag: 'TURN', no: '5A', title: 'Mainnet-ready', blurb: 'Rate limits, a wallet floor, idempotent sends.', commit: 'd973d46' },
+] as const

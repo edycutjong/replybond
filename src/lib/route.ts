@@ -10,8 +10,9 @@ export function routeFor(pathname: string): Route {
 const CHANGE = 'replybond:route'
 
 /** Client-side navigation without a router dependency: push the path and tell subscribers. */
-export function navigate(to: '/' | '/app'): void {
-  if (window.location.pathname !== to) window.history.pushState(null, '', to)
+export function navigate(to: string): void {
+  const here = window.location.pathname + window.location.search + window.location.hash
+  if (here !== to) window.history.pushState(null, '', to)
   window.dispatchEvent(new Event(CHANGE))
   window.scrollTo(0, 0)
 }
