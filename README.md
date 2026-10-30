@@ -14,7 +14,7 @@
 
 **Built in Arc Studio:** https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4 (opens with an Arc Studio login)
 
-**Tests:** `forge test` with the pinned forge 1.7.1 (`.foundry-version`): 66 passed, 0 failed (63 unit and fuzz tests plus 3 invariants at 256 runs; forge 1.8 runs the 3 invariants as one campaign and prints 64 passed) · `bun test tests/`: 112 passed, 0 failed (15 files)
+**Tests:** `forge test` with the pinned forge 1.7.1 (`.foundry-version`): 66 passed, 0 failed (63 unit and fuzz tests plus 3 invariants at 256 runs; forge 1.8 runs the 3 invariants as one campaign and prints 64 passed) · `bun test tests/`: 116 passed, 0 failed (16 files)
 
 <p><a href="#mainnet-proof">Mainnet proof</a> · <a href="#how-it-works">How it works</a> · <a href="#how-arc-studio-built-it">How Arc Studio built it</a></p>
 

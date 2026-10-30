@@ -459,11 +459,11 @@ table.jobs td {
 .lp-box{border:1px solid var(--rule);padding:8px 12px;min-width:112px}
 .lp-box b{display:block;font:600 24px/1.2 var(--font-data);color:var(--before)}
 .lp-clock{font:700 172px/.86 var(--font-display);color:var(--before);font-variant-numeric:tabular-nums;margin-top:12px;transition:opacity .4s}
-.lp-foil.lp-paid .lp-clock{opacity:.1}
+.lp-foil.lp-paid .lp-clock{opacity:0}
 .lp-bar{height:4px;background:var(--rule);margin-top:12px}
 .lp-bar i{display:block;height:100%;background:var(--before);transform-origin:left}
 .lp-stamp{position:absolute;left:50%;top:47%;translate:-50% -50%;max-width:94%;font:700 54px/1 var(--font-display);letter-spacing:.04em;text-transform:uppercase;color:var(--after);border:5px solid var(--after);outline:2px solid var(--after);outline-offset:4px;padding:10px 20px 8px;opacity:0;transform:rotate(-6deg) scale(2.3);pointer-events:none;white-space:nowrap}
-.lp-stamp small{display:block;font:600 22px/1.2 var(--font-data);letter-spacing:0}
+.lp-stamp small{display:block;font:600 22px/1.2 var(--font-data);letter-spacing:0;margin-top:5px}
 .lp-foil.lp-paid .lp-stamp{animation:lp-slam .42s var(--land) forwards}
 .lp-foil.lp-paid .lp-face{animation:lp-hit .4s ease-out}
 .lp-split{font-size:14px;margin-top:8px;color:var(--muted);min-height:1.5em}
@@ -477,7 +477,7 @@ table.jobs td {
 .lp-receipts{display:grid;grid-template-columns:repeat(4,1fr);gap:28px;padding:40px 0 64px;border-top:1px solid var(--rule)}
 .lp-rc b{display:block;font:700 72px/1 var(--font-display);font-variant-numeric:tabular-nums}
 .lp-rc b.lp-red{color:var(--after)}
-.lp-rc span{display:block;font-size:15px;margin-top:8px}
+.lp-rc > span{display:block;font-size:15px;margin-top:8px}
 .lp-rc code{display:block;font:12px var(--font-data);color:var(--muted);margin-top:6px}
 .lp section.lp-band{padding:80px 0}
 .lp-sh{display:grid;grid-template-columns:220px 1fr;gap:32px;margin-bottom:36px}
@@ -653,3 +653,26 @@ table.jobs td {
 .lp-bar i{will-change:transform;transition:transform 70ms linear}
 /* The texture fades by its own opacity instead of a mask (a mask over a large SVG is costly to paint). */
 .lp-tex svg{-webkit-mask:none;mask:none;opacity:.55}
+/* Phone, settled card: the stamp is smaller and sits inside a clock area tall enough for it, and the torn stub is a short, small tear that stays inside the card. */
+@media (max-width:640px){
+  .lp-clockarea{min-height:84px;display:flex;align-items:center;justify-content:center}
+  .lp-clock{text-align:center}
+  .lp-stamp{font-size:24px;padding:6px 10px 4px;border-width:4px;outline-offset:3px;letter-spacing:.03em}
+  .lp-stamp small{font-size:13px;margin-top:4px}
+  .lp-inkmark{font-size:20px}
+  .lp-foil.lp-paid .lp-stub{transform:translate(-6px,10px) rotate(-2deg);align-self:start;height:calc(100% - 14px)}
+}
+
+/* Landing hover feedback: links turn to the stamp colour and gain an offset underline; FAQ rows turn blue with a faint tint. */
+.lp a:not(.lp-btn):not(.lp-nl):not(.lp-mark){transition:color .15s ease-out,text-decoration-color .15s ease-out,text-underline-offset .15s ease-out,text-decoration-thickness .15s ease-out;text-underline-offset:2px;text-decoration-line:underline;text-decoration-color:transparent;text-decoration-thickness:1px}
+.lp a:not(.lp-btn):not(.lp-nl):not(.lp-mark):hover{color:var(--after);text-decoration-color:currentColor;text-decoration-thickness:2px;text-underline-offset:4px}
+.lp footer a:not(.lp-btn):not(.lp-nl):not(.lp-mark):hover,.lp .lp-honest a:not(.lp-btn):not(.lp-nl):not(.lp-mark):hover{color:#ff8a73}
+.lp-faq summary{transition:color .15s ease-out,background-color .15s ease-out}
+.lp-faq summary:hover{color:var(--before);background-color:rgba(45,82,160,.06)}
+/* Settled card, every width: the torn stub is a little shorter than the card, so after it drops it still ends inside the card and clear of the caption. The stamp is sized to fit the clock area. */
+.lp-foil.lp-paid .lp-stub{align-self:start;height:calc(100% - 34px)}
+@media (min-width:641px){
+  .lp-stamp{font-size:50px;padding:8px 18px 6px}
+  .lp-stamp small{font-size:20px}
+}
+@media (max-width:640px){.lp-foil.lp-paid .lp-stub{height:calc(100% - 14px)}}
