@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: App (lint, typecheck, tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Lint
+        run: |
+          bunx oxlint --type-aware src scripts
+          bunx oxlint .
+      - name: Typecheck
+        run: bunx tsc --noEmit
+      - name: Test
+        run: bun test tests/
+      - name: Build
+        run: bunx vite build
+
+  contracts:
+    name: Contracts (build, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # OpenZeppelin is resolved from node_modules (see remappings.txt), so the dependencies are installed first.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Install
+        run: bun install --frozen-lockfile
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - name: Build
+        run: forge build
+      - name: Test
+        run: forge test

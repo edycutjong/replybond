@@ -167,7 +167,7 @@ describe('receipts, honest quotes and faq', () => {
     assert.ok(!test[0]!.a.startsWith('Yes.'))
   })
   it('quotes the README\'s Honest limits word for word', () => {
-    const limits = readme.slice(readme.indexOf('## Honest limits'), readme.indexOf('## How Arc Studio built it')).toLowerCase()
+    const limits = readme.slice(readme.indexOf('### Honest limits'), readme.indexOf('## 🚀 Getting Started')).toLowerCase()
     assert.ok(limits.length > 100)
     for (const q of HONEST_QUOTES) assert.ok(limits.includes(q.toLowerCase().replace(/\.$/, '')), q)
   })
