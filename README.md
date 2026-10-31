@@ -11,6 +11,7 @@
 [![Live Demo](https://img.shields.io/badge/🚀_Live-Demo-06b6d4?style=for-the-badge)](https://replybond.edycu.dev)
 [![Built in Arc Studio](https://img.shields.io/badge/🛠️_Built_in-Arc_Studio-2D52A0?style=for-the-badge)](https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4)
 [![Demo Video](https://img.shields.io/badge/🎬_Demo-Video-ef4444?style=for-the-badge)](https://youtu.be/wjW8ADyqM40)
+[![DoraHacks BUIDL](https://img.shields.io/badge/📦_DoraHacks-BUIDL_50635-8b5cf6?style=for-the-badge)](https://dorahacks.io/build/50635)
 [![Built for Arc Microgrants](https://img.shields.io/badge/DoraHacks-Arc_Microgrants-8b5cf6?style=for-the-badge)](https://dorahacks.io/hackathon/arc-microgrants-2/detail)
 
 [![Arc mainnet](https://img.shields.io/badge/Arc-mainnet-2D52A0?style=flat)](https://explorer.arc.io/address/0x2a0f4aeF8E5379d8E4606F40846cf97716fe749f)
