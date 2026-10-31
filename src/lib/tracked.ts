@@ -12,8 +12,11 @@ export interface Tracked {
   respondedAt?: number
   graceWindow?: number
   output?: string
+  /** The job's on-chain response window (seconds) and bond (base units, decimal string), when known. */
+  responseWindow?: number
+  bond?: string
 }
-export type TrackedExtra = Pick<Tracked, 'deadline' | 'respondedAt' | 'graceWindow' | 'output'>
+export type TrackedExtra = Pick<Tracked, 'deadline' | 'respondedAt' | 'graceWindow' | 'output' | 'responseWindow' | 'bond'>
 
 const KEY = 'replybond.active'
 const MAX_AGE_MS = 6 * 60 * 60 * 1000
@@ -27,7 +30,7 @@ export function readTracked(now = Date.now()): Tracked[] {
       const t = item as Partial<Tracked> | null
       if (t && typeof t.id === 'string' && /^\d+$/.test(t.id) && typeof t.kind === 'string' && typeof t.at === 'number' && now - t.at < MAX_AGE_MS) {
         const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
-        out.push({ id: t.id, kind: t.kind, at: t.at, deadline: n(t.deadline), respondedAt: n(t.respondedAt), graceWindow: n(t.graceWindow), output: typeof t.output === 'string' ? t.output : undefined })
+        out.push({ id: t.id, kind: t.kind, at: t.at, deadline: n(t.deadline), respondedAt: n(t.respondedAt), graceWindow: n(t.graceWindow), output: typeof t.output === 'string' ? t.output : undefined, responseWindow: n(t.responseWindow), bond: typeof t.bond === 'string' && /^\d+$/.test(t.bond) ? t.bond : undefined })
       }
     }
     return out

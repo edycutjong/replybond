@@ -93,8 +93,8 @@ export const REPO_URL = 'https://github.com/edycutjong/replybond'
  */
 export const TEST_COUNTS = {
   forge: 66,
-  bun: 116,
-  bunFiles: 16,
+  bun: 129,
+  bunFiles: 18,
   invariants: { count: 3, runs: 256, calls: 128_000 },
 } as const
 

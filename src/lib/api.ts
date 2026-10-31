@@ -1,4 +1,5 @@
 import type { Address, Hex } from 'viem'
+import type { BondChoice, WindowChoice } from './terms'
 
 export interface ApiReply<T> {
   status: number
@@ -99,7 +100,22 @@ export interface RefillBody {
 
 export type DemoMode = 'normal' | 'silent' | 'buyer-silent'
 
-export interface DemoRunBody {
+/** The deadline and bond a visitor picked for one call. */
+export interface ChosenTerms {
+  windowS: WindowChoice
+  bond: BondChoice
+}
+
+/** The terms the server used for a job it just posted, so the card can be drawn before the event scan catches up. */
+export interface TermsBody {
+  /** Response window in seconds. */
+  responseWindow?: number
+  /** Bond and price in native-USDC base units, as decimal strings. */
+  bond?: string
+  price?: string
+}
+
+export interface DemoRunBody extends TermsBody {
   error?: string
   message?: string
   balances?: { provider: string; buyer: string }
@@ -120,7 +136,7 @@ export interface DemoRunBody {
   pool?: PoolStatus
 }
 
-export interface OfferBody {
+export interface OfferBody extends TermsBody {
   error?: string
   message?: string
   balances?: { provider: string; buyer: string }
@@ -145,8 +161,8 @@ export const api = {
   sweep: () => call<SweepBody>('/api/sweep', 'GET'),
   settle: (jobId?: string) => call<SettleBody>('/api/settle', 'POST', jobId === undefined ? {} : { jobId }),
   refill: () => call<RefillBody>('/api/demo-refill', 'GET'),
-  demoRun: (mode: DemoMode) => call<DemoRunBody>('/api/demo-run', 'POST', { mode }),
-  offer: (buyer: Address) => call<OfferBody>('/api/offer', 'POST', { buyer }),
+  demoRun: (mode: DemoMode, terms?: ChosenTerms) => call<DemoRunBody>('/api/demo-run', 'POST', { mode, ...terms }),
+  offer: (buyer: Address, terms?: ChosenTerms) => call<OfferBody>('/api/offer', 'POST', { buyer, ...terms }),
   job: (jobId: string) => call<JobBody>('/api/job', 'POST', { jobId }),
 }
 

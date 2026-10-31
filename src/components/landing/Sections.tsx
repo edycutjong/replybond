@@ -140,7 +140,7 @@ export function Studio() {
       <p className="lp-more">
         <a href={TURNS_TABLE_URL} target="_blank" rel="noopener noreferrer">How it was built: the turn-by-turn table <ArrowUpRight size={14} aria-hidden style={{ display: 'inline', verticalAlign: '-2px' }} /></a>
         {' · '}
-        <a href={STUDIO_PROJECT_URL} target="_blank" rel="noopener noreferrer">The Arc Studio project</a> (opens with an Arc Studio login)
+        <a href={STUDIO_PROJECT_URL} target="_blank" rel="noopener noreferrer">The Arc Studio project</a> (opens for its owner after an Arc Studio login)
       </p>
     </Band>
   )

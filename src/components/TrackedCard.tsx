@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Status } from '@/lib/abi'
-import { BOND, GRACE_WINDOW_S, PRICE } from '@/lib/terms'
+import { cardTerms } from '@/lib/cardTerms'
+import { GRACE_WINDOW_S } from '@/lib/terms'
 import type { TrackedKind } from '@/lib/tracked'
 import type { FlowCtx } from './types'
 import { Counterfoil, STATUS_FOR_EVENT, TxLink } from './ui'
@@ -12,6 +13,10 @@ export interface CardFallback {
   output?: string
   status?: number
   txHashes?: Record<string, string | null>
+  /** The terms the server reported for a job it just posted (used until the chain read has the job). */
+  price?: bigint
+  bond?: bigint
+  responseWindow?: number
 }
 
 /**
@@ -21,7 +26,7 @@ export interface CardFallback {
 export function TrackedCard({ ctx, id, kind, fallback, extra }: { ctx: FlowCtx; id: string; kind: TrackedKind; fallback?: CardFallback; extra?: ReactNode }) {
   const job = ctx.jobs.find((j) => String(j.id) === id)
   const stored0 = ctx.seen.find((t) => t.id === id)
-  fallback ??= stored0 ? { deadline: stored0.deadline, respondedAt: stored0.respondedAt, graceWindow: stored0.graceWindow, output: stored0.output, status: stored0.respondedAt ? Status.Responded : Status.Accepted } : undefined
+  fallback ??= stored0 ? { deadline: stored0.deadline, respondedAt: stored0.respondedAt, graceWindow: stored0.graceWindow, output: stored0.output, status: stored0.respondedAt ? Status.Responded : Status.Accepted, responseWindow: stored0.responseWindow, bond: stored0.bond ? BigInt(stored0.bond) : undefined } : undefined
   const stored = ctx.settlements.byJob[id]
   // A receipt the browser could not fetch is not a verdict: keep reading instead of showing "transfer not confirmed".
   const settlement = stored && !stored.unavailable ? stored : undefined
@@ -36,6 +41,7 @@ export function TrackedCard({ ctx, id, kind, fallback, extra }: { ctx: FlowCtx; 
   const graceWindow = job?.graceWindow ?? fallback?.graceWindow ?? GRACE_WINDOW_S
   const pastDeadline = status === Status.Accepted && deadline > 0 && ctx.now > deadline
   const pastGrace = status === Status.Responded && respondedAt > 0 && ctx.now > respondedAt + graceWindow
+  const terms = cardTerms(job, fallback)
   const open = !settlement
   const due = open && (pastDeadline || pastGrace)
   // A wallet-owned job past its deadline is timed out by that wallet; the server only pays for demo-buyer timeouts.
@@ -52,13 +58,13 @@ export function TrackedCard({ ctx, id, kind, fallback, extra }: { ctx: FlowCtx; 
   return (
     <Counterfoil
       id={id}
-      price={job?.price ?? PRICE}
-      bond={job?.bond ?? BOND}
+      price={terms.price}
+      bond={terms.bond}
       status={status}
       deadline={deadline || undefined}
       respondedAt={respondedAt || undefined}
       graceWindow={graceWindow}
-      responseWindow={job?.responseWindow}
+      responseWindow={terms.responseWindow}
       now={ctx.now}
       output={job?.output ?? fallback?.output}
       settlement={settlement}

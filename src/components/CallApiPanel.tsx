@@ -6,9 +6,11 @@ import { api, walletsLowMessage } from '@/lib/api'
 import type { DemoRunBody, JobBody } from '@/lib/api'
 import { NETWORK_NAME, fmtUsdc } from '@/lib/appConfig'
 import { publicClient, readCommittedOutput } from '@/lib/chainReads'
-import { BOND, GRACE_WINDOW_S, PRICE, RESPONSE_WINDOW_S } from '@/lib/terms'
+import { DEFAULT_BOND_CHOICE, DEFAULT_WINDOW_CHOICE, GRACE_WINDOW_S, PRICE, bondOf } from '@/lib/terms'
+import type { BondChoice, WindowChoice } from '@/lib/terms'
 import type { TrackedKind } from '@/lib/tracked'
 import { BusyNotice } from './BusyNotice'
+import { TermsPicker } from './TermsPicker'
 import { TrackedCard } from './TrackedCard'
 import type { CardFallback } from './TrackedCard'
 import type { FlowCtx } from './types'
@@ -26,6 +28,7 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [lowWallets, setLowWallets] = useState(false)
+  const [terms, setTerms] = useState<{ windowS: WindowChoice; bond: BondChoice }>({ windowS: DEFAULT_WINDOW_CHOICE, bond: DEFAULT_BOND_CHOICE })
   const [refusal, setRefusal] = useState<JobBody | null>(null)
   const [watch, setWatch] = useState<{ phase: 'idle' | 'running' | 'busy' | 'error'; mode?: 'normal' | 'buyer-silent'; body?: DemoRunBody; message?: string }>({ phase: 'idle' })
 
@@ -52,7 +55,7 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
     let offeredId: string | null = null
     try {
       setPhase('offering')
-      const o = await api.offer(wallet.address)
+      const o = await api.offer(wallet.address, terms)
       const low = walletsLowMessage(o.body)
       if (low) {
         setLowWallets(true)
@@ -64,14 +67,16 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
       }
       const id = o.body.jobId
       offeredId = id
-      setActive({ id, kind: 'own' })
-      ctx.track(id, 'own')
+      // The terms the offer was posted with: the card counts down this window until the chain read has the job.
+      const offered = { bond: o.body.bond ? BigInt(o.body.bond) : bondOf(terms.bond), responseWindow: o.body.responseWindow ?? terms.windowS }
+      setActive({ id, kind: 'own', fallback: offered })
+      ctx.track(id, 'own', { responseWindow: offered.responseWindow, bond: String(offered.bond) })
       const fromBlock = (await publicClient.getBlockNumber()) - 5n
       setPhase('accepting')
       step = 'accept'
       const acceptTx = await wallet.accept(BigInt(id))
       step = 'after'
-      setActive({ id, kind: 'own', fallback: { txHashes: { 'your accept': acceptTx } } })
+      setActive({ id, kind: 'own', fallback: { ...offered, txHashes: { 'your accept': acceptTx } } })
       setPhase('calling')
       const jr = await api.job(id)
       if (jr.body.refused) setRefusal(jr.body) // not ours or wrong mode: show the settle path, keep watching the chain
@@ -127,22 +132,23 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
     setNotice(null)
     setPhase('idle')
     try {
-      const r = await api.demoRun(mode)
+      const r = await api.demoRun(mode, terms)
       if (r.status === 409 || walletsLowMessage(r.body)) return setWatch({ phase: 'busy', mode, body: r.body })
       const b = r.body
       if (r.status !== 200 || !b.jobId) throw new Error(walletsLowMessage(b) ?? b.error ?? b.message ?? `demo run failed (HTTP ${r.status})`)
+      const ran = { bond: b.bond ? BigInt(b.bond) : bondOf(terms.bond), responseWindow: b.responseWindow ?? terms.windowS }
       if (mode === 'normal') {
         const ack = b.txHashes?.acknowledge
         if (!ack) throw new Error('the run returned no acknowledge transaction')
         // Classified from the receipt the route returned; the browser's own RPC is only the fallback.
         await ctx.settlements.load(b.jobId, ack, b.receipt)
-        setActive({ id: b.jobId, kind: 'normal', fallback: { status: Status.Paid, output: b.output, txHashes: b.txHashes } })
+        setActive({ id: b.jobId, kind: 'normal', fallback: { status: Status.Paid, output: b.output, txHashes: b.txHashes, bond: ran.bond, responseWindow: ran.responseWindow } })
       } else {
-        ctx.track(b.jobId, 'buyer-silent', { respondedAt: b.respondedAt ?? undefined, graceWindow: b.graceWindow, output: b.output })
+        ctx.track(b.jobId, 'buyer-silent', { respondedAt: b.respondedAt ?? undefined, graceWindow: b.graceWindow, output: b.output, responseWindow: ran.responseWindow, bond: String(ran.bond) })
         setActive({
           id: b.jobId,
           kind: 'buyer-silent',
-          fallback: { status: Status.Responded, respondedAt: b.respondedAt ?? undefined, graceWindow: b.graceWindow, output: b.output, txHashes: b.txHashes },
+          fallback: { status: Status.Responded, respondedAt: b.respondedAt ?? undefined, graceWindow: b.graceWindow, output: b.output, txHashes: b.txHashes, bond: ran.bond, responseWindow: ran.responseWindow },
         })
       }
       setWatch({ phase: 'idle' })
@@ -160,8 +166,9 @@ export function CallApiPanel({ ctx }: { ctx: FlowCtx }) {
   return (
     <section aria-labelledby="call-title" className="bg-card p-5" style={{ border: '1px solid var(--rule)' }}>
       <h2 id="call-title" className="panel-title">Call the API</h2>
-      <p className="mt-1 data wrap text-[14px]">price {fmtUsdc(PRICE)} · bond {fmtUsdc(BOND)} · window {RESPONSE_WINDOW_S} s · grace {GRACE_WINDOW_S} s</p>
+      <p className="mt-1 data wrap text-[14px]">price {fmtUsdc(PRICE)} · bond {fmtUsdc(bondOf(terms.bond))} · window {terms.windowS} s · grace {GRACE_WINDOW_S} s</p>
       <p className="mt-2 text-[15px]">Our demo provider is an echo service: it answers with your input in capitals.</p>
+      <TermsPicker idPrefix="call" windowS={terms.windowS} bond={terms.bond} onChange={setTerms} disabled={busyFlow || running} />
       <div className="mt-3 flex flex-wrap gap-3">
         <button className="btn btn-primary" onClick={() => void payAndCall()} disabled={busyFlow || running}>
           {busyFlow ? <span className="dots-wait">{label[phase]}</span> : wallet.address ? 'Pay & call' : 'Connect to pay & call'}

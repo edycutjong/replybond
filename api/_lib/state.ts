@@ -1,7 +1,9 @@
 import { parseEventLogs } from 'viem'
 import type { Address, Hex } from 'viem'
 import { replyBondAbi, Status } from '../../src/lib/abi.js'
-import { LIMITS, MIN_WALLET_BALANCE, POOL_TARGET, ctx, sameAddr } from './config.js'
+import { BOND, LIMITS, MIN_WALLET_BALANCE, POOL_TARGET, ctx, sameAddr } from './config.js'
+import { RESPONSE_WINDOW_S } from '../../src/lib/terms.js'
+import type { OfferTerms } from '../../src/lib/terms.js'
 import type { Deps } from './deps.js'
 import { HttpError } from './http.js'
 import { isPoolStock } from '../../src/lib/pool.js'
@@ -17,6 +19,8 @@ export interface Job {
   requestHash: Hex
   price: bigint
   bond: bigint
+  /** Response window in seconds, from the offer (absent only in hand-built test jobs). */
+  responseWindow?: number
   graceWindow: number
   status: number
   postedAt: number
@@ -193,6 +197,7 @@ export async function loadSnapshot(deps: ScanDeps = {}): Promise<Snapshot> {
           requestHash: l.args.requestHash,
           price: l.args.price,
           bond: l.args.bond,
+          responseWindow: Number(l.args.responseWindow),
           graceWindow: Number(l.args.graceWindow),
           status: Status.Open,
           postedAt: await tsOf(l),
@@ -322,10 +327,19 @@ export function emptySettleBody(pool: PoolStatus) {
 }
 
 /** An Open normal offer of ours, designated to `buyer`, posted under five minutes ago: reused instead of posting again. */
-export function reusableOffer(s: Snapshot, buyer: string): Job | undefined {
+export function reusableOffer(s: Snapshot, buyer: string, terms: OfferTerms = { windowS: RESPONSE_WINDOW_S, bond: BOND }): Job | undefined {
   return [...s.jobs]
     .reverse()
-    .find((j) => j.status === Status.Open && sameAddr(j.designated, buyer) && classify(j, 'normal').ok && s.now - j.postedAt < 300)
+    .find(
+      (j) =>
+        j.status === Status.Open &&
+        sameAddr(j.designated, buyer) &&
+        classify(j, 'normal').ok &&
+        s.now - j.postedAt < 300 &&
+        // Only an offer with the terms asked for is handed back.
+        j.bond === terms.bond &&
+        (j.responseWindow ?? RESPONSE_WINDOW_S) === terms.windowS,
+    )
 }
 
 export function floorOk(provider: bigint, buyer: bigint, min: bigint): boolean {
@@ -338,13 +352,16 @@ export interface WalletFloor {
   buyer: bigint
 }
 
-/** Native balances of both demo wallets against the floor. */
-export async function walletFloor(deps: Partial<Pick<Deps, 'pub' | 'accounts'>> = {}): Promise<WalletFloor> {
+/**
+ * Native balances of both demo wallets against the floor. `providerExtra` is a bond the provider is about to lock
+ * beyond the floor: the provider must then hold at least that bond plus the floor.
+ */
+export async function walletFloor(deps: Partial<Pick<Deps, 'pub' | 'accounts'>> = {}, providerExtra = 0n): Promise<WalletFloor> {
   const c = ctx()
   const pub = deps.pub ?? c.pub
   const accounts = deps.accounts ?? c.accounts
   const [provider, buyer] = await Promise.all([pub.getBalance({ address: accounts.provider.address }), pub.getBalance({ address: accounts.buyer.address })])
-  return { ok: floorOk(provider, buyer, MIN_WALLET_BALANCE), provider, buyer }
+  return { ok: floorOk(provider - providerExtra, buyer, MIN_WALLET_BALANCE), provider, buyer }
 }
 
 /** HTTP 503 body used by every route that would spend from a low demo wallet. */
@@ -380,14 +397,16 @@ export function jobBusyReasons(s: Snapshot): BusyReason[] {
  * Busy = pending nonce on either wallet, or a (non-pool) job of ours Accepted within its deadline, or Responded within grace.
  * Pool stock (see src/lib/pool.ts) never counts.
  */
-export async function busyStatus(s: Snapshot) {
+export async function busyStatus(s: Snapshot, deps: Partial<Pick<Deps, 'pub' | 'accounts'>> = {}) {
   const c = ctx()
+  const pub = deps.pub ?? c.pub
+  const accounts = deps.accounts ?? c.accounts
   const reasons: BusyReason[] = []
   for (const who of ['provider', 'buyer'] as const) {
-    const address = c.accounts[who].address
+    const address = accounts[who].address
     const [pending, latest] = await Promise.all([
-      c.pub.getTransactionCount({ address, blockTag: 'pending' }),
-      c.pub.getTransactionCount({ address, blockTag: 'latest' }),
+      pub.getTransactionCount({ address, blockTag: 'pending' }),
+      pub.getTransactionCount({ address, blockTag: 'latest' }),
     ])
     if (pending > latest) reasons.push({ kind: 'pending_nonce', detail: `${who} wallet has ${pending - latest} pending tx`, until: s.now + 5 })
   }

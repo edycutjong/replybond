@@ -31,9 +31,9 @@
 
 **Example settlement (timeout):** [`0x7312e5db…3a77`](https://explorer.arc.io/tx/0x7312e5db712a360e5b582e0f0afa0a9b96e4ce228d89036d6fcd5aae26783a77) · 0.015 USDC back to the buyer
 
-**Built in Arc Studio:** https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4 (opens with an Arc Studio login)
+**Built in Arc Studio:** https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4 (opens for its owner after an Arc Studio login)
 
-**Tests:** `forge test` with the pinned forge 1.7.1 (`.foundry-version`): 66 passed, 0 failed (63 unit and fuzz tests plus 3 invariants at 256 runs; forge 1.8 runs the 3 invariants as one campaign and prints 64 passed) · `bun test tests/`: 116 passed, 0 failed (16 files)
+**Tests:** `forge test` with the pinned forge 1.7.1 (`.foundry-version`): 66 passed, 0 failed (63 unit and fuzz tests plus 3 invariants at 256 runs; forge 1.8 runs the 3 invariants as one campaign and prints 64 passed) · `bun test tests/`: 129 passed, 0 failed (18 files)
 
 <p><a href="#mainnet-proof">Live deployment</a> · <a href="#how-it-works">Architecture</a> · <a href="#how-arc-studio-built-it">Arc Studio integration</a></p>
 
@@ -146,7 +146,7 @@ One run through the live app on Arc mainnet covering all three settlement paths 
 ### Honest limits (6)
 
 1. **Delivery, not correctness.** The contract proves the output was delivered onchain on time. It does not prove the output is correct. Outputs are public and at most 1,024 bytes.
-2. **Demo terms.** Demo jobs use a price of 0.010 USDC, a bond of 0.005 USDC, a 45 s response window and a 120 s grace window.
+2. **Demo terms.** The defaults are a price of 0.010 USDC, a bond of 0.005 USDC, a 45 s response window and a 120 s grace window. A buyer may pick a 30, 45 or 90 s response window and a 0.005, 0.010 or 0.020 USDC bond per call; the price and the grace window stay fixed.
 3. **Offer limits are global and best-effort.** The demo allows 20 new offers per hour and 80 per day across all visitors (`LIMITS` in `api/_lib/config.ts`). They are counted from onchain history, not from a database, so two simultaneous requests can both take the last slot.
 4. **A wallet floor.** New demo runs and pool refills pause when either demo wallet holds less than 0.1 USDC (`MIN_WALLET_BALANCE`); the own-wallet offer path checks only the provider wallet. Settling stays open.
 5. **No always-on worker.** The demo provider answers only while some request runs the sweep: a page load, an API call, or the daily cron. A buyer who accepts a job and never calls the API can therefore time it out and collect the bond.
@@ -204,7 +204,7 @@ bun run build          # production build into dist/
 
 ## 🗺️ Roadmap
 
-- [ ] Let the buyer choose the deadline and the bond per call. The demo fixes them.
+- [x] Let the buyer choose the deadline (30/45/90 s) and the bond (0.005/0.010/0.020 USDC) per call.
 - [ ] Add a way to check answers, so correctness can back a payout and not only delivery.
 - [ ] Run the provider as an always-on worker, so answers do not depend on a request running the sweep.
 - [ ] Open the provider side beyond the demo echo service.

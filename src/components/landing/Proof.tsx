@@ -59,7 +59,7 @@ export function Proof() {
         {mainnet && <span><a href={sourcifyUrl(address)} {...ext}>Sourcify exact match <Out /></a></span>}
         {mainnet && (
           <span>
-            Built in <a href={STUDIO_PROJECT_URL} {...ext}>Arc Studio</a> (opens with an Arc Studio login); mainnet deploy with <code className="lp-data">forge create</code> on the unchanged source
+            Built in <a href={STUDIO_PROJECT_URL} {...ext}>Arc Studio</a> (opens for its owner after an Arc Studio login); mainnet deploy with <code className="lp-data">forge create</code> on the unchanged source
           </span>
         )}
       </div>

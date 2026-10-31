@@ -7,11 +7,15 @@ import { withDeps } from './deps.js'
 import type { Deps } from './deps.js'
 import { redact } from './http.js'
 import { BOND, GRACE_WINDOW, MIN_WALLET_BALANCE, POOL_GRACE_WINDOW, POOL_TARGET, PRICE, RESPONSE_WINDOW, ctx, sameAddr } from './config.js'
+import type { OfferTerms } from '../../src/lib/terms.js'
 import { recordByMode } from './fixtures.js'
 import type { Mode, OfferRecord } from './fixtures.js'
 import { busyStatus, classify, emptySettleBody, loadSnapshot, orphanedExpired, poolStatus, rateStatus, reusableOffer, rotationCandidates, walletFloor, walletsLowBody } from './state.js'
 import type { Snapshot } from './state.js'
 import { Skipped, sendTx } from './tx.js'
+
+/** The terms every existing caller gets: the defaults in terms.ts. */
+const DEFAULT_TERMS: OfferTerms = { windowS: Number(RESPONSE_WINDOW), bond: BOND }
 
 const shortErr = (e: unknown) => redact((e as { shortMessage?: string }).shortMessage ?? (e as Error).message)
 
@@ -23,8 +27,8 @@ const sweepSummary = (s: Awaited<ReturnType<typeof runSweep>>) => ({
 })
 
 /** `grace` is GRACE_WINDOW for real jobs and POOL_GRACE_WINDOW for refill stock (the on-chain pool marker). */
-async function postOffer(d: Deps, record: OfferRecord, designated: Address, grace: bigint = GRACE_WINDOW) {
-  const tx = await d.send('provider', 'postOffer', [record.requestHash, designated, PRICE, RESPONSE_WINDOW, grace], { value: BOND })
+async function postOffer(d: Deps, record: OfferRecord, designated: Address, grace: bigint = GRACE_WINDOW, terms: OfferTerms = DEFAULT_TERMS) {
+  const tx = await d.send('provider', 'postOffer', [record.requestHash, designated, PRICE, BigInt(terms.windowS), grace], { value: terms.bond })
   const ev = parseEventLogs({ abi: replyBondAbi, logs: tx.receipt.logs, eventName: 'OfferPosted' })[0]
   if (!ev) throw new Error(`OfferPosted not found in ${tx.hash}`)
   return { jobId: ev.args.id, txHash: tx.hash }
@@ -65,22 +69,30 @@ function limited(kind: 'busy' | 'rate_limited', snap: Snapshot, rate: ReturnType
 export type DemoMode = Mode | 'buyer-silent'
 export const isDemoMode = (v: unknown): v is DemoMode => v === 'normal' || v === 'silent' || v === 'buyer-silent'
 
-export async function demoRun(mode: DemoMode, deps?: Partial<Deps>): Promise<JobResult> {
+/** The terms of a job as the page needs them to draw its card before the event scan has caught up. */
+const termsBody = (t: OfferTerms) => ({ responseWindow: t.windowS, bond: t.bond, bondUsdc: formatEther(t.bond), price: PRICE, priceUsdc: formatEther(PRICE) })
+
+/**
+ * `terms` are the visitor's chosen deadline and bond. Without them the defaults apply and nothing else changes; with them
+ * the provider must hold the chosen bond on top of the wallet floor.
+ */
+export async function demoRun(mode: DemoMode, deps?: Partial<Deps>, terms?: OfferTerms): Promise<JobResult> {
   const d = withDeps(deps)
-  const floor = await walletFloor(d)
+  const floor = await walletFloor(d, terms?.bond ?? 0n)
   if (!floor.ok) return { status: 503, body: walletsLowBody(floor) }
   const sweep = await runSweep(undefined, d)
   const snap = await d.snapshot()
   const rate = rateStatus(snap, 1)
   if (!rate.allowed) return { status: 409, body: limited('rate_limited', snap, rate, null) }
-  const busy = await busyStatus(snap)
+  const busy = await busyStatus(snap, d)
   if (busy.busy) return { status: 409, body: limited('busy', snap, rate, busy) }
 
+  const used = terms ?? DEFAULT_TERMS
   const record = recordByMode(mode === 'silent' ? 'silent' : 'normal')
-  const posted = await postOffer(d, record, ctx().demoBuyerAddress)
+  const posted = await postOffer(d, record, ctx().demoBuyerAddress, GRACE_WINDOW, used)
   const accepted = await acceptAsDemoBuyer(d, posted.jobId)
   const txHashes: Record<string, Hex | null> = { postOffer: posted.txHash, acceptOffer: accepted.txHash }
-  if (mode === 'silent') return { status: 200, body: { mode, jobId: posted.jobId, deadline: accepted.deadline, txHashes, sweep: sweepSummary(sweep) } }
+  if (mode === 'silent') return { status: 200, body: { mode, jobId: posted.jobId, deadline: accepted.deadline, ...termsBody(used), txHashes, sweep: sweepSummary(sweep) } }
 
   const answered = await d.respond(posted.jobId, 'normal')
   if (answered.status !== 200) return { status: 502, body: { error: 'job route refused our own demo job', jobId: posted.jobId, txHashes, detail: answered.body } }
@@ -96,6 +108,7 @@ export async function demoRun(mode: DemoMode, deps?: Partial<Deps>): Promise<Job
         deadline: accepted.deadline,
         respondedAt: answeredJob?.respondedAt ?? null,
         graceWindow: Number(GRACE_WINDOW),
+        ...termsBody(used),
         output: answered.body.output,
         responseHash: answered.body.responseHash,
         txHashes,
@@ -109,11 +122,11 @@ export async function demoRun(mode: DemoMode, deps?: Partial<Deps>): Promise<Job
   txHashes.acknowledge = ack.hash
   return {
     status: 200,
-    body: { mode, jobId: posted.jobId, deadline: accepted.deadline, output: answered.body.output, responseHash: answered.body.responseHash, finalStatus: 'Paid', txHashes, receipt: await receiptSummary(ack.hash), sweep: sweepSummary(sweep) },
+    body: { mode, jobId: posted.jobId, deadline: accepted.deadline, ...termsBody(used), output: answered.body.output, responseHash: answered.body.responseHash, finalStatus: 'Paid', txHashes, receipt: await receiptSummary(ack.hash), sweep: sweepSummary(sweep) },
   }
 }
 
-function offerBody(d: Deps, jobId: bigint, txHash: Hex | undefined, buyer: Address, sweep: Awaited<ReturnType<typeof runSweep>>, reused: boolean) {
+function offerBody(d: Deps, jobId: bigint, txHash: Hex | undefined, buyer: Address, sweep: Awaited<ReturnType<typeof runSweep>>, reused: boolean, terms: OfferTerms) {
   const record = recordByMode('normal')
   return {
     jobId,
@@ -124,9 +137,9 @@ function offerBody(d: Deps, jobId: bigint, txHash: Hex | undefined, buyer: Addre
     requestHash: record.requestHash,
     price: PRICE,
     priceUsdc: formatEther(PRICE),
-    bond: BOND,
-    bondUsdc: formatEther(BOND),
-    responseWindow: Number(RESPONSE_WINDOW),
+    bond: terms.bond,
+    bondUsdc: formatEther(terms.bond),
+    responseWindow: terms.windowS,
     graceWindow: Number(GRACE_WINDOW),
     reused,
     note: 'Accept it from the buyer wallet with acceptOffer(jobId), paying exactly price. The sweep answers within the deadline.',
@@ -134,20 +147,21 @@ function offerBody(d: Deps, jobId: bigint, txHash: Hex | undefined, buyer: Addre
   }
 }
 
-export async function ownWalletOffer(buyer: Address, deps?: Partial<Deps>): Promise<JobResult> {
+export async function ownWalletOffer(buyer: Address, deps?: Partial<Deps>, terms?: OfferTerms): Promise<JobResult> {
   const d = withDeps(deps)
+  const used = terms ?? DEFAULT_TERMS
   const sweep = await runSweep(undefined, d)
   const snap = await d.snapshot()
-  // An offer for this buyer that is still Open and fresh is handed back instead of posting another one.
-  const reusable = reusableOffer(snap, buyer)
-  if (reusable) return { status: 200, body: offerBody(d, reusable.id, reusable.txs.posted, buyer, sweep, true) }
-  // This path spends only the provider's bond and gas, so only the provider wallet must clear the floor.
-  const floor = await walletFloor(d)
-  if (floor.provider < MIN_WALLET_BALANCE) return { status: 503, body: walletsLowBody(floor) }
+  // An offer for this buyer, with these terms, that is still Open and fresh is handed back instead of posting another one.
+  const reusable = reusableOffer(snap, buyer, used)
+  if (reusable) return { status: 200, body: offerBody(d, reusable.id, reusable.txs.posted, buyer, sweep, true, used) }
+  // This path spends only the provider's bond and gas, so only the provider wallet must clear the floor (plus a chosen bond).
+  const floor = await walletFloor(d, terms?.bond ?? 0n)
+  if (floor.provider - (terms?.bond ?? 0n) < MIN_WALLET_BALANCE) return { status: 503, body: walletsLowBody(floor) }
   const rate = rateStatus(snap, 1)
   if (!rate.allowed) return { status: 429, body: limited('rate_limited', snap, rate, null) }
-  const posted = await postOffer(d, recordByMode('normal'), buyer)
-  return { status: 200, body: offerBody(d, posted.jobId, posted.txHash, buyer, sweep, false) }
+  const posted = await postOffer(d, recordByMode('normal'), buyer, GRACE_WINDOW, used)
+  return { status: 200, body: offerBody(d, posted.jobId, posted.txHash, buyer, sweep, false, used) }
 }
 
 /** The platform stops a function at 60 s: the daily cron call stays inside 50 s, the page's on-demand call inside 45 s. */
