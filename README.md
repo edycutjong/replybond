@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/icon-animated.svg" alt="ReplyBond icon" width="144">
+
 <h1>ReplyBond</h1>
 
 <p><strong>Pay an API per call. If it never answers, you get your price back plus the provider's bond, on Arc, in USDC.</strong></p>
@@ -18,6 +20,7 @@
 [![Bun](https://img.shields.io/badge/Bun-000000?style=flat&logo=bun&logoColor=white)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 [![CI](https://github.com/edycutjong/replybond/actions/workflows/ci.yml/badge.svg)](https://github.com/edycutjong/replybond/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/edycutjong/replybond?sort=semver)](https://github.com/edycutjong/replybond/releases/latest)
 
 **Live:** https://replybond.edycu.dev · Arc mainnet (chain 5042, native USDC)
 
@@ -184,7 +187,7 @@ forge test             # contract tests (bun run contracts:test)
 bun run build          # production build into dist/
 ```
 
-`.github/workflows/ci.yml` runs these checks on every push to `main` and on pull requests; `codeql.yml` and `gitleaks.yml` scan the code and the full git history.
+`.github/workflows/ci.yml` runs these checks on every push to `main` and on pull requests; `codeql.yml` and `gitleaks.yml` scan the code and the full git history. `release.yml` tags a semantic version on every push to `main` from conventional commit prefixes: `fix:` and `perf:` bump the patch, `feat:` the minor, `!` or `BREAKING CHANGE:` the major; other prefixes do not release.
 
 ## 🗺️ Roadmap
 
