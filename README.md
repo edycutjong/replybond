@@ -10,6 +10,7 @@
 
 [![Live Demo](https://img.shields.io/badge/🚀_Live-Demo-06b6d4?style=for-the-badge)](https://replybond.edycu.dev)
 [![Built in Arc Studio](https://img.shields.io/badge/🛠️_Built_in-Arc_Studio-2D52A0?style=for-the-badge)](https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4)
+[![Demo Video](https://img.shields.io/badge/🎬_Demo-Video-ef4444?style=for-the-badge)](https://youtu.be/6z08S14H-A0)
 [![Built for Arc Microgrants](https://img.shields.io/badge/DoraHacks-Arc_Microgrants-8b5cf6?style=for-the-badge)](https://dorahacks.io/hackathon/arc-microgrants-2/detail)
 
 [![Arc mainnet](https://img.shields.io/badge/Arc-mainnet-2D52A0?style=flat)](https://explorer.arc.io/address/0x2a0f4aeF8E5379d8E4606F40846cf97716fe749f)
@@ -38,6 +39,14 @@
 </div>
 
 Mainnet deploy: Arc Studio deploys to testnet only, so the mainnet contract was deployed with `forge create` on the unchanged Studio source (commit `f674874`). `contracts/ReplyBond.sol` has not changed since Studio turn 1 (`cd3e816`); later turns changed the app, the API routes and the docs. Sourcify reports an exact match.
+
+## 📸 See it in Action
+
+<div align="center">
+  <img src="docs/assets/broll-timeout.gif" alt="A real Arc mainnet job: the 45 s clock hits zero, timeout pays the buyer 0.015 USDC, and the explorer shows the same transaction." width="100%">
+</div>
+
+> **A real Arc mainnet job (job 24), from the [demo video](https://youtu.be/6z08S14H-A0).** The provider stays silent, the 45 s clock (sped up ×8) hits zero, `timeout` pays the buyer 0.010 back + 0.005 from the bond, and the explorer shows the same transaction ([`0x631e449b…69c1`](https://explorer.arc.io/tx/0x631e449bf6486286bd838e981f3cc8fba7166729f74bfe90f5799851b21969c1)) moving 0.015 USDC.
 
 ## 💡 The Problem & Solution
 
