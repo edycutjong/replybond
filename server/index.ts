@@ -53,11 +53,9 @@ async function probe(): Promise<Response> {
       maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
     })
   } catch (err) {
-    const e = err as { name?: string; shortMessage?: string; message?: string; details?: string }
-    return json(
-      { error: e.shortMessage ?? e.message ?? String(err), name: e.name, details: e.details },
-      500,
-    )
+    // The details stay in the server log; the caller gets a fixed message.
+    console.error('probe failed', err)
+    return json({ error: 'probe failed; see the server log' }, 500)
   }
 }
 

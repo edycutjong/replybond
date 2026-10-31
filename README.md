@@ -2,13 +2,14 @@
 
 <img src="docs/assets/icon-animated.svg" alt="ReplyBond icon" width="144">
 
-<h1>ReplyBond</h1>
+<h1>ReplyBond ⏱️</h1>
 
 <p><strong>Pay an API per call. If it never answers, you get your price back plus the provider's bond, on Arc, in USDC.</strong></p>
 
 <img src="docs/assets/readme-hero-animated.svg" alt="ReplyBond — The 45-second clock hits zero, a red stamp lands: INDEMNITY PAID, +0.015 USDC back to the buyer." width="100%">
 
 [![Live Demo](https://img.shields.io/badge/🚀_Live-Demo-06b6d4?style=for-the-badge)](https://replybond.edycu.dev)
+[![Built in Arc Studio](https://img.shields.io/badge/🛠️_Built_in-Arc_Studio-2D52A0?style=for-the-badge)](https://studio.arc.io/app/aaea9afa-1278-4d24-8918-87e8ba733ca4)
 [![Built for Arc Microgrants](https://img.shields.io/badge/DoraHacks-Arc_Microgrants-8b5cf6?style=for-the-badge)](https://dorahacks.io/hackathon/arc-microgrants-2/detail)
 
 [![Arc mainnet](https://img.shields.io/badge/Arc-mainnet-2D52A0?style=flat)](https://explorer.arc.io/address/0x2a0f4aeF8E5379d8E4606F40846cf97716fe749f)
@@ -106,21 +107,23 @@ The app and contract were built in [Arc Studio](https://studio.arc.io/app/aaea9a
 | `0c238af` | turn p44b-1 | Landing copy fixes: "bonded" instead of "insured" on the ring, and "proof transactions" in the receipts label and the hero link. |
 | `6160818` | social card file fix (not a Studio turn) | The corrupted `public/og-image.png` replaced by the 1200x630 PNG. |
 
+Studio also ran the Foundry suite in turn 1: 66 passed, 0 failed (63 unit and fuzz tests plus 3 invariants), as recorded in that turn of the Studio project; the counts at the top are from the pinned forge 1.7.1 locally and in CI. Later commits are named by their Studio turn in the commit subject (`p45c-*`: the README layout, LICENSE, and the CI and release workflows); outside Studio there are only media files and pasted literals (transaction hashes, a contact email).
+
 Mainnet was deployed with `forge create`, not by Studio: see the deploy note at the top of this page.
 
 <a id="mainnet-proof"></a>
 ## ⛓️ Live Deployment
 
-One run through the live app on Arc mainnet covering all three settlement paths (jobs 5, 6 and 7): the app's `/api` routes sent every transaction below to the contract above, and each has status 1.
+One run through the live app on Arc mainnet covering all three settlement paths (jobs 5, 6 and 7); one transaction per step is shown: the app's `/api` routes sent every transaction below to the contract above, and each has status 1.
 
-| Step | Transaction | Result |
-|---|---|---|
-| `postOffer` | [`0xaf44d467…9911`](https://explorer.arc.io/tx/0xaf44d46742f2450b970cee9be66f67a17bcec622f7397a381a4420d362bb9911) | Offer posted with the bond |
-| `acceptOffer` | [`0xd36045c2…f51d`](https://explorer.arc.io/tx/0xd36045c287853e39482c4a81cabbe1698ce93aede9201aaeb61feb41fb81f51d) | Buyer paid the price; clock started |
-| `respond` | [`0xc41b4090…1093`](https://explorer.arc.io/tx/0xc41b409017c57c5e1d84ff8a4b382170a536eedd0b2284380f5bb2e308e71093) | Answer written onchain |
-| `acknowledge` | [`0xce43ecd7…e338`](https://explorer.arc.io/tx/0xce43ecd7b5470259caf9658accb7197ecd1707a9b24584a978f0e8b3477de338) | Provider paid 0.015 USDC |
-| `timeout` | [`0x7312e5db…3a77`](https://explorer.arc.io/tx/0x7312e5db712a360e5b582e0f0afa0a9b96e4ce228d89036d6fcd5aae26783a77) | Buyer +0.015 USDC (0.010 refund + 0.005 penalty) |
-| `claim` | [`0x2c008eb8…de6f`](https://explorer.arc.io/tx/0x2c008eb8e69a417b781d6da6065b2b98d87cb40d2cfd6b950db0fe1a3fe2de6f) | Provider +0.015 USDC, buyer silent |
+| Job | Step | Transaction | Result |
+|---|---|---|---|
+| 5 | `postOffer` | [`0xaf44d467…9911`](https://explorer.arc.io/tx/0xaf44d46742f2450b970cee9be66f67a17bcec622f7397a381a4420d362bb9911) | Offer posted with the bond |
+| 5 | `acceptOffer` | [`0xd36045c2…f51d`](https://explorer.arc.io/tx/0xd36045c287853e39482c4a81cabbe1698ce93aede9201aaeb61feb41fb81f51d) | Buyer paid the price; clock started |
+| 5 | `respond` | [`0xc41b4090…1093`](https://explorer.arc.io/tx/0xc41b409017c57c5e1d84ff8a4b382170a536eedd0b2284380f5bb2e308e71093) | Answer written onchain |
+| 5 | `acknowledge` | [`0xce43ecd7…e338`](https://explorer.arc.io/tx/0xce43ecd7b5470259caf9658accb7197ecd1707a9b24584a978f0e8b3477de338) | Provider paid 0.015 USDC |
+| 6 | `timeout` | [`0x7312e5db…3a77`](https://explorer.arc.io/tx/0x7312e5db712a360e5b582e0f0afa0a9b96e4ce228d89036d6fcd5aae26783a77) | Buyer +0.015 USDC (0.010 refund + 0.005 penalty) |
+| 7 | `claim` | [`0x2c008eb8…de6f`](https://explorer.arc.io/tx/0x2c008eb8e69a417b781d6da6065b2b98d87cb40d2cfd6b950db0fe1a3fe2de6f) | Provider +0.015 USDC, buyer silent |
 
 ## 📊 Engineering Rigor
 
@@ -195,6 +198,7 @@ bun run build          # production build into dist/
 - [ ] Add a way to check answers, so correctness can back a payout and not only delivery.
 - [ ] Run the provider as an always-on worker, so answers do not depend on a request running the sweep.
 - [ ] Open the provider side beyond the demo echo service.
+- [ ] Further out (ideas, not built yet): an x402 adapter so any x402 endpoint can opt into bonded deadlines, and reusable provider bond pools.
 
 ## 📄 License
 
