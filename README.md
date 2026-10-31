@@ -190,7 +190,7 @@ forge test             # contract tests (bun run contracts:test)
 bun run build          # production build into dist/
 ```
 
-`.github/workflows/ci.yml` runs these checks on every push to `main` and on pull requests; `codeql.yml` and `gitleaks.yml` scan the code and the full git history. `release.yml` tags a semantic version on every push to `main` from conventional commit prefixes: `fix:` and `perf:` bump the patch, `feat:` the minor, `!` or `BREAKING CHANGE:` the major; other prefixes do not release.
+`.github/workflows/ci.yml` runs these checks on every push to `main` and on pull requests; `codeql.yml` and `gitleaks.yml` scan the code and the full git history. `release.yml` tags a semantic version on every push to `main` from conventional commit prefixes: `fix:` and `perf:` bump the patch, `feat:` the minor, `!` or `BREAKING CHANGE:` the major; other prefixes do not release. `deploy.yml` deploys to Vercel only after CI passes: production on `main`, a preview for pull requests from this repository.
 
 ## 🗺️ Roadmap
 
